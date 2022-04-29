@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "runcached"
+version = "0.1.0"
+description = ""
+authors = ["Tim Vergenz <vergenzt@gmail.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+clize = "^4.2.1"
+appdirs = "^1.4.4"
+diskcache = "^5.4.0"
+
+[tool.poetry.dev-dependencies]
+pytest = "^5.2"
+pytest-mock = "^3.7.0"
+
+[tool.poetry.scripts]
+runcached = 'runcached:main'
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
