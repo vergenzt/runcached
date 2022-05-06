@@ -146,6 +146,14 @@ optional = false
 python-versions = "*"
 
 [[package]]
+name = "strongtyping"
+version = "2.1.9"
+description = "Decorator which checks whether the function is called with the correct type of parameters"
+category = "main"
+optional = false
+python-versions = ">=3.7"
+
+[[package]]
 name = "wcwidth"
 version = "0.2.5"
 description = "Measures the displayed width of unicode strings in a terminal"
@@ -156,7 +164,7 @@ python-versions = "*"
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8"
-content-hash = "11ad484a34d684edc9d78736369c106e369718c9dd00ec8e8e81a044f4e22497"
+content-hash = "46a27d6badad4ec97355de047a813bad61c79f91cb8a76f8eff0d6f325de22cb"
 
 [metadata.files]
 appdirs = [
@@ -213,6 +221,10 @@ pytest-mock = [
 pytimeparse = [
     {file = "pytimeparse-1.1.8-py2.py3-none-any.whl", hash = "sha256:04b7be6cc8bd9f5647a6325444926c3ac34ee6bc7e69da4367ba282f076036bd"},
     {file = "pytimeparse-1.1.8.tar.gz", hash = "sha256:e86136477be924d7e670646a98561957e8ca7308d44841e21f5ddea757556a0a"},
+]
+strongtyping = [
+    {file = "strongtyping-2.1.9-py3-none-any.whl", hash = "sha256:7b8c76f6204416bab9130eaa5cb96d83da26aa04106af17549ba2658a5b1848e"},
+    {file = "strongtyping-2.1.9.tar.gz", hash = "sha256:472ace60bc9240577649362471bc8dc8c83d031de264f1929653698492092646"},
 ]
 wcwidth = [
     {file = "wcwidth-0.2.5-py2.py3-none-any.whl", hash = "sha256:beb4802a9cebb9144e99086eff703a642a13d6a0052920003a230f3294bbe784"},
