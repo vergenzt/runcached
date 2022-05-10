@@ -37,6 +37,7 @@ Options:
 
 """
 
+from datetime import timedelta, datetime
 import os
 import sys
 from dataclasses import dataclass, field, replace
@@ -84,19 +85,20 @@ class RunConfig:
   shell: bool = True
   custom_cache_key: Optional[str] = None
 
-  def run(self) -> 'RunResult':
+  def run_without_caching(self) -> 'RunResult':
+    started_at = datetime.now()
     result = run(args=self.cmd, env=self.env, stdin=PIPE, stdout=PIPE, stderr=PIPE, text=True, check=True, shell=self.shell)
-    return RunResult(self, result.stdout, result.stderr)
+    return RunResult(started_at, result.stdout, result.stderr)
 
   def compute_custom_cache_key(self) -> 'RunConfig':
     with_env_marker = replace(self, env={ **self.env, RUNCACHED_CUSTOM_KEY_GEN: '1' })
-    custom_cache_key = with_env_marker.run().stdout
+    custom_cache_key = with_env_marker.run_without_caching().stdout
     return replace(self, custom_cache_key=custom_cache_key)
 
 
 @dataclass(frozen=True)
 class RunResult:
-  config: RunConfig
+  started_at: datetime
   stdout: Optional[str] = None
   stderr: Optional[str] = None
 
@@ -125,7 +127,17 @@ def cli():
   cache_dir = appdirs.user_cache_dir(appname=__package__)
   cache = diskcache.Cache(cache_dir)
 
-  # TODO: caching
+  now = datetime.now()
+  cache_for = timeparse(args['--cache-for'])
+  use_cached_result_if_later_than = now - cache_for
+
+  cached_result = cast(RunResult, cache.get(cfg))
+  if cached_result and now - cached_result.started_at
+    
+
+
+
+    if cached_at
 
 
 if __name__=='__main__':
