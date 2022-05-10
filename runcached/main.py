@@ -11,7 +11,7 @@ Options:
 
   -k, --custom-key
     Before computing cache key, pre-invoke COMMAND with special environment variable
-    ${RUNCACHED_CUSTOM_KEY_GEN} non-empty. Resulting stdout is included in computation
+    ${RUNCACHE_KEY} non-empty. Resulting stdout is included in computation
     of cache key in addition to COMMAND/stdin/env vars according to other options.
 
   -F, --keep-failures
@@ -72,11 +72,11 @@ CliArgs = TypedDict('CliArgs', {
 })
 
 
-RUNCACHED_CUSTOM_KEY_GEN = 'RUNCACHED_CUSTOM_KEY_GEN'
+RUNCACHE_KEY = 'RUNCACHE_KEY'
 
 
 def cli_args(argv: Optional[List[str]] = None) -> CliArgs:
-  doc = str(__doc__).format(RUNCACHED_CUSTOM_KEY_GEN=RUNCACHED_CUSTOM_KEY_GEN)
+  doc = str(__doc__).format(RUNCACHE_KEY=RUNCACHE_KEY)
   args = docopt.docopt(doc, argv)
   validated_args = MatchTypedDict(CliArgs)(args) # raises error if TypedDict is inconsistent with value
   return cast(CliArgs, validated_args)
@@ -104,7 +104,7 @@ class RunConfig:
     return RunResult(started_at, result.returncode, result.stdout, result.stderr)
 
   def _compute_custom_cache_key(self) -> 'RunConfig':
-    with_env_marker = replace(self, env={ **self.env, RUNCACHED_CUSTOM_KEY_GEN: '1' })
+    with_env_marker = replace(self, env={ **self.env, RUNCACHE_KEY: '1' })
     logging.debug('Generating custom cache key using %s', with_env_marker)
     custom_cache_key = with_env_marker._run_without_caching().stdout
     return replace(self, custom_cache_key=custom_cache_key)
