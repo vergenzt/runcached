@@ -1,4 +1,5 @@
+import pytest
+
 from . import main
 
-def test_arg_parsing():
-  ...
+def test_cli_args(*args):
