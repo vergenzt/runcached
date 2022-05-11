@@ -1,53 +1,17 @@
 """
-Usage: runcached [-q | -v] [options] [--] COMMAND...
-
-Runs the given COMMAND with caching of stdout and stderr.
-
-Options:
-
-  -t, --ttl=DURATION
-    Max length of time for which to cache command results.
-    Format: https://pypi.org/project/pytimeparse [default: 60s]
-
-  -k, --custom-key
-    Before computing cache key, pre-invoke COMMAND with special environment variable
-    ${RUNCACHE_KEY} non-empty. Resulting stdout is included in computation
-    of cache key in addition to COMMAND/stdin/env vars according to other options.
-
-  -F, --keep-failures
-    Cache run results that exit non-zero. Does not cache these results by default.
-
-  -i, --include-stdin
-    Include stdin when computing cache key. Defaults to true if stdin is not a TTY. If
-    stdin is included, stdin will be read until EOF before executing anything.
-  -I, --exclude-stdin
-    Exclude stdin when computing cache key. Overrides -i.
-
-  -e, --include-env=VAR,...
-    Include named environment variables when computing cache key. Separate with commas.
-    Wildcards allowed. [default: ]
-  -E, --exclude-env=VAR,...
-    Exclude named environment variables when computing cache key. Separate with commas.
-    Wildcards allowed. [default: ]
-
-  -S, --no-shell
-    Do not pass COMMAND to $SHELL for execution. Overrides -s.
-
-  -q, --quiet
-    Set log level to warnings only.
-  -v, --verbose
-    Set log level to debug.
-
 """
 
 import logging
 import os
 import sys
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field, replace, fields
 from datetime import datetime, timedelta
 from fnmatch import fnmatchcase
 from subprocess import DEVNULL, PIPE, run
 from typing import List, Mapping, Optional, TypedDict, cast
+from functools import partial
+
+from argparse import ArgumentParser, BooleanOptionalAction
 
 import appdirs
 import diskcache
@@ -56,37 +20,120 @@ from pytimeparse.timeparse import timeparse
 from strongtyping.strong_typing import MatchTypedDict
 
 
-CliArgs = TypedDict('CliArgs', {
-  '--ttl': str,
-  '--custom-key': bool,
-  '--keep-failures': bool,
-  '--include-stdin': bool,
-  '--exclude-stdin': bool,
-  '--include-env': str,
-  '--exclude-env': str,
-  '--no-shell': bool,
-  '--quiet': bool,
-  '--verbose': bool,
-  '--': bool,
-  'COMMAND': List[str],
-})
+
+RUNCACHE_KEY_ENV_VAR = 'RUNCACHE_KEY'
 
 
-RUNCACHE_KEY = 'RUNCACHE_KEY'
+@dataclass
+class CliArgs:
+  '''
+  Usage: runcached [options] [--] COMMAND...
 
+  Runs the given COMMAND with caching of stdout and stderr.
+  '''
 
-def cli_args(argv: Optional[List[str]] = None) -> CliArgs:
-  doc = str(__doc__).format(RUNCACHE_KEY=RUNCACHE_KEY)
-  args = docopt.docopt(doc, argv)
-  validated_args = MatchTypedDict(CliArgs)(args) # raises error if TypedDict is inconsistent with value
-  return cast(CliArgs, validated_args)
+  COMMAND: List[str] = field(metadata=dict(
+    help='The command to run',
+    nargs='+',
+    action='append',
+  ))
+
+  ttl: timedelta = field(
+    metadata=dict(
+      option_strings=['-t', '--ttl'],
+      type=lambda ttl: timedelta(seconds=timeparse(ttl)),
+      metavar='DURATION',
+      help='Max length of time for which to cache command results. Format: https://pypi.org/project/pytimeparse',
+      default='60s',
+    )
+  )
+
+  custom_key: bool = field(
+    metadata=dict(
+      option_strings=['-k', '--custom-key'],
+      help=f'''
+        Before computing cache key, pre-invoke COMMAND with special environment variable
+        ${RUNCACHE_KEY_ENV_VAR} non-empty. Resulting stdout is included in computation
+        of cache key in addition to COMMAND/stdin/env vars according to other options.
+      ''',
+      default=False,
+      action=BooleanOptionalAction,
+    )
+  )
+
+  keep_failures: bool = field(
+    metadata=dict(
+      option_strings=['-f', '--keep-failures'],
+      help='Cache run results that exit non-zero.',
+      default=False,
+    )
+  )
+
+  include_stdin: bool = field(
+    metadata=dict(
+      option_strings=['-i', '--include-stdin'],
+      help='''
+        Include stdin when computing cache key. Defaults to true if stdin is not a TTY. If
+        stdin is included, stdin will be read until EOF before executing anything.
+      ''',
+      action=BooleanOptionalAction,
+    ),
+    default_factory=lambda: not sys.stdin.isatty(),
+  )
+
+  include_env: List[str] = field(
+    metadata=dict(
+      option_strings=['-e', '--include-env'],
+      help='Include named environment variables when computing cache key. Separate with commas. Wildcards allowed.',
+      type=partial(str.split, sep=',')
+    )
+  )
+
+  exclude_env: List[str] = field(
+    metadata=dict(
+      option_strings=['-E', '--exclude-env'],
+      help='Excluded named environment variables when computing cache key. Separate with commas. Wildcards allowed.',
+      type=partial(str.split, sep=',')
+    )
+  )
+
+  shell: bool = field(
+    metadata=dict(
+      option_strings=['-s', '--shell'],
+      help='Passes COMMAND to $SHELL for execution.',
+      type=BooleanOptionalAction,
+    )
+  )
+
+  quiet: bool = field(
+    metadata=dict(
+      option_strings=['-q', '--quiet'],
+      help='Supress log messages from runcached.',
+      default=False,
+    ),
+  )
+
+  verbose: bool = field(
+    metadata=dict(
+      option_strings=['-v', '--verbose'],
+      help='Show extra log messages from runcached.',
+      default=False,
+    )
+  )
+
+  @classmethod
+  def parse(cls: Type[CliArgs], prog: str = sys.argv[0], argv: List[str] = sys.argv[1:]) -> CliArgs:
+    parser = ArgumentParser(prog=prog, usage=cls.__doc__)
+    for field in fields(cls):
+      parser.add_argument(dest=field.name, type=field.type, **field.metadata)
+    return cls(**parser.parse_known_args(argv))
 
 
 @dataclass(frozen=True)
 class RunConfig:
   cmd: List[str]
   env: Mapping[str,str] = field(default_factory=dict)
-  input: Optional[str] = None
+  input: Optional[str] = field(default=None, repr=False)
   shell: bool = True
   custom_cache_key: Optional[str] = None
 
@@ -118,9 +165,20 @@ class RunConfig:
       ttl = timedelta(seconds=timeparse(args['--ttl']))
       min_started_at = datetime.now() - ttl
 
-      if (result := cast(RunResult, cache.get(self))) and result.started_at >= min_started_at:
+      result: RunResult
+      cached_result = cast(RunResult, cache.get(self))
+
+      if cached_result and cached_result.started_at >= min_started_at:
+        result = cached_result
         logging.info(f'Using cached result for {self} from {result.started_at}.')
-      elif result := self._run_without_caching():
+      else:
+        if cached_result:
+          logging.info(f'Last cached {self} at {cached_result.started_at}, which is more than {args["--ttl"]} old. Recomputing...')
+        else:
+          logging.info(f'No cached result found for {self}. Computing...')
+
+        result = self._run_without_caching()
+
         if result.return_code == 0 or args['--keep-failures']:
           cache.set(self, result)
         else:
@@ -150,16 +208,17 @@ def cli(argv = sys.argv[1:]) -> int:
   )
   logging.debug(args)
   
+  is_shell = not args['--no-shell']
   cfg = RunConfig(
-    shell = (is_shell := not args['--no-shell']),
+    shell = is_shell,
     cmd = [' '.join(args['COMMAND'])] if is_shell else args['COMMAND'],
     env = {
       env_var: env_var_value for env_var, env_var_value in os.environ.items()
       if (
-        _included := any(( fnmatchcase(env_var, glob) for glob in args['--include-env'].split(',') ))
+        _included := any(( fnmatchcase(env_var, glob) for glob in (args['--include-env'] or '').split(',') ))
       )
       and not (
-        _excluded := any(( fnmatchcase(env_var, glob) for glob in args['--exclude-env'].split(',') ))
+        _excluded := any(( fnmatchcase(env_var, glob) for glob in (args['--exclude-env'] or '').split(',') ))
       )
     },
     input = sys.stdin.read() if (not sys.stdin.isatty() or args['--include-stdin']) and not args['--exclude-stdin'] else None,
