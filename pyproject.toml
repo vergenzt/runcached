@@ -5,12 +5,13 @@ description = ""
 authors = ["Tim Vergenz <vergenzt@gmail.com>"]
 
 [tool.poetry.dependencies]
-python = "~3.9"
+python="^3.9"
 appdirs = "^1.4.4"
 diskcache = "^5.4.0"
 docopt = "^0.6.2"
 pytimeparse = "^1.1.8"
 strongtyping = "^2"
+ConfigArgParse = "^1.5.3"
 
 [tool.poetry.dev-dependencies]
 pytest = "^5.2"
