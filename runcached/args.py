@@ -119,6 +119,28 @@ class CliArgs:
     ],
   })
 
+  shlex: bool = field(metadata={
+    ARGSPEC_KEY: [
+      ArgSpec(
+        '--shlex', '-l',
+        action='store_true',
+        default=False,
+        help=dedent('''
+          Re-quote command line args before passing to $SHELL. Only used if shell is
+          true. [default: %(default)s]
+        '''),
+      ),
+      ArgSpec(
+        '--no-shlex', '-L',
+        action='store_false',
+        help=dedent('''
+          Do not re-quote command line args before passing to $SHELL. You may need to
+          embed additional quoting ensure the shell correctly interprets the command.
+        '''),
+      ),
+    ],
+  })
+
   verbosity: int = field(metadata={
     ARGSPEC_KEY: [
       ArgSpec(

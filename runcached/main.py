@@ -32,13 +32,14 @@ class RunConfig:
   command: List[str]
   env: Mapping[str,str] = field(default_factory=dict)
   input: Optional[str] = None
-  shell: bool = True
+  shell: bool = False
+  shlex: bool = False
   custom_cache_key: Optional[str] = None
 
   def _run_without_caching(self) -> 'RunResult':
     started_at = datetime.now()
     result = run(
-      args=' '.join(self.command) if self.shell else self.command,
+      args=(shlex.join if self.shlex else ' '.join)(self.command) if self.shell else self.command,
       shell=self.shell,
       executable=os.environ.get('SHELL') if self.shell else None,
       env=self.env,
@@ -83,6 +84,7 @@ def cli(argv = sys.argv[1:]) -> int:
       )
     },
     shell = args.shell,
+    shlex = args.shlex,
     input = sys.stdin.read() if args.stdin else None,
   )
 
