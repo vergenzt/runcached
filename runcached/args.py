@@ -1,10 +1,13 @@
 import logging
+import os
+import re
 import sys
 from argparse import REMAINDER, Action, ArgumentParser, Namespace
 from dataclasses import dataclass, field, fields
 from datetime import timedelta
+from logging import debug
 from textwrap import dedent
-from typing import Callable, ClassVar, List, Optional, Sequence, Tuple, Type
+from typing import Callable, ClassVar, Dict, List, Optional, Sequence, Tuple, Type
 
 from pytimeparse.timeparse import timeparse as pytimeparse
 
@@ -169,11 +172,29 @@ class CliArgs:
   @classmethod
   def parse(cls: Type['CliArgs'], argv = sys.argv[1:]) -> Tuple['CliArgs', ArgumentParser]:
     parser = ArgumentParser(description=cls.__doc__)
-    for field in fields(cls):
-      add_arg_fns = field.metadata[cls.ARGSPEC_KEY]
-      for add_arg_fn in add_arg_fns:
-        add_arg_fn(parser, dest=field.name)
+    actions: List[Action] = [
+      add_arg_fn(parser, dest=field.name)
+      for field in fields(cls) 
+      for add_arg_fn in field.metadata[cls.ARGSPEC_KEY]
+    ]
+
+    extra_argvs = []
+    for k,v in os.environ.items():
+      if k.startswith('RUNCACHED_'):
+        debug('Environment var {}={}', k, v)
+
+    for action in actions:
+      for option_string in action.option_strings:
+        if val := os.environ.get('RUNCACHED' + re.sub('[^a-zA-Z0-9]+', '_', option_string).upper()):
+          extra_argvs.append(option_string)
+          if action.nargs:
+            extra_argvs.append(val)
+    if extra_argvs:
+      debug('Extra args from env vars: {}', extra_argvs)
+    for extra_argv in reversed(extra_argvs):
+      argv.insert(0, extra_argv)
 
     known_args, _rest = parser.parse_known_args(argv)
     args = cls(**known_args.__dict__)
+
     return args, parser
