@@ -1,5 +1,7 @@
+from functools import partial
 import logging
 import os
+import re
 import shlex
 import sys
 from dataclasses import dataclass, field
@@ -10,6 +12,7 @@ from typing import List, Mapping, Optional, cast
 
 import appdirs
 import diskcache
+from more_itertools import only, partition
 
 from .args import CliArgs
 
@@ -65,24 +68,39 @@ class RunConfig:
 
 
 def cli(argv = sys.argv[1:]) -> int:
+  if '-v' in argv:
+    logging.basicConfig(level=logging.DEBUG)
+
   args, parser = CliArgs.parse(argv)
   if args.COMMAND[0] == '--':
     args.COMMAND = args.COMMAND[1:]
 
   logging.basicConfig(format='[runcached:%(levelname)s] %(message)s', level=args.verbosity)
   logging.debug(args)
-  
+
+  env_forwards, env_assigns = partition(re.compile(r'^\w+=').match, args.include_env)
+  envs_forwarded = {
+    env_var: env_val for env_var, env_val in os.environ.items()
+    if any((
+      fnmatchcase(env_var, glob) for glob in env_forwards or []
+    ))
+  }
+  envs_assigned = {
+    tokens[0]: tokens[2]
+    for env_assign in env_assigns
+    if (tokens := list(shlex.shlex(env_assign, posix=True, punctuation_chars='=')))
+  }
+  envs_included = envs_forwarded | envs_assigned
+  envs_remaining = {
+    env_var: env_val for env_var, env_val in envs_included.items()
+    if not any((
+      fnmatchcase(env_var, glob) for glob in args.exclude_env or []
+    ))
+  }
+
   cfg = RunConfig(
     command = args.COMMAND,
-    env = {
-      env_var: env_var_value for env_var, env_var_value in os.environ.items()
-      if (
-        _included := any(( fnmatchcase(env_var, glob) for glob in args.include_env or [] ))
-      )
-      and not (
-        _excluded := any(( fnmatchcase(env_var, glob) for glob in args.exclude_env or [] ))
-      )
-    },
+    env = envs_remaining,
     shell = args.shell,
     shlex = args.shlex,
     input = sys.stdin.read() if args.stdin else None,

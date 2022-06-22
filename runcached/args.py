@@ -1,6 +1,8 @@
+from itertools import filterfalse
 import logging
 import os
 import re
+import shlex
 import sys
 from argparse import REMAINDER, Action, ArgumentParser, Namespace
 from dataclasses import dataclass, field, fields
@@ -79,11 +81,13 @@ class CliArgs:
       metavar='VAR[,...]',
       nargs=1,
       action=_ExtendEachAction,
-      type=lambda s: s.split(','),
+      type=lambda s: [t for t in shlex.shlex(s, posix=True, punctuation_chars=',') if t != ','],
       default=['HOME'],
       help=dedent('''
-        Include named environment variables when computing cache key. Separate with commas.
-        Wildcards allowed. Combines with -E. [default: %(default)s]
+        Include named environment variable(s) when computing cache key. Separate with
+        commas. May assign new value with VAR=value, or include existing by simply
+        naming VAR. Wildcards allowed when declaring simple names. Aggregates across
+        default and across all -e options. [default: %(default)s]
       '''),
     )],
   })
@@ -96,8 +100,8 @@ class CliArgs:
       action=_ExtendEachAction,
       type=lambda s: s.split(','),
       help=dedent('''
-        Exclude named environment variables when computing cache key. Separate with commas.
-        Wildcards allowed. Combines with -e.
+        Exclude named environment variables when computing cache key. Separate with
+        commas. Wildcards allowed. Aggregates across all -E options, and overrides -e.
       '''),
     )],
   })
@@ -181,7 +185,7 @@ class CliArgs:
     extra_argvs = []
     for k,v in os.environ.items():
       if k.startswith('RUNCACHED_'):
-        debug('Environment var {}={}', k, v)
+        debug('Environment var %s=%s', k, v)
 
     for action in actions:
       for option_string in action.option_strings:
@@ -189,8 +193,10 @@ class CliArgs:
           extra_argvs.append(option_string)
           if action.nargs:
             extra_argvs.append(val)
+
     if extra_argvs:
-      debug('Extra args from env vars: {}', extra_argvs)
+      debug('Extra args from env vars: %s', extra_argvs)
+
     for extra_argv in reversed(extra_argvs):
       argv.insert(0, extra_argv)
 

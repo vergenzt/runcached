@@ -9,6 +9,7 @@ python = "~3.9"
 appdirs = "^1.4.4"
 diskcache = "^5.4.0"
 pytimeparse = "^1.1.8"
+more-itertools = "^8.13.0"
 
 [tool.poetry.dev-dependencies]
 
