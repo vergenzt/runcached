@@ -1,4 +1,3 @@
-from functools import partial
 import logging
 import os
 import re
@@ -25,8 +24,12 @@ class RunResult:
   stderr: Optional[str] = None
 
   def write(self) -> int:
-    sys.stdout.write(self.stdout) if self.stdout else None
-    sys.stderr.write(self.stderr) if self.stderr else None
+    for f, val in [(sys.stdout, self.stdout), (sys.stderr, self.stderr)]:
+      if val:
+        try:
+          f.write(val)
+        except BrokenPipeError:
+          pass
     return self.return_code
 
 
@@ -68,14 +71,16 @@ class RunConfig:
 
 
 def cli(argv = sys.argv[1:]) -> int:
-  if '-v' in argv:
-    logging.basicConfig(level=logging.DEBUG)
+  logging.basicConfig(format='[runcached:%(levelname)s] %(message)s')
+  if {'-v', '--verbose'} & set(argv):
+    logging.getLogger().setLevel(logging.DEBUG)
+    sys.addaudithook(lambda *a: print('[runcached:DEBUG]', *a, file=sys.stderr) if a[0] == 'subprocess.Popen' else None)
 
   args, parser = CliArgs.parse(argv)
   if args.COMMAND[0] == '--':
     args.COMMAND = args.COMMAND[1:]
 
-  logging.basicConfig(format='[runcached:%(levelname)s] %(message)s', level=args.verbosity)
+  logging.getLogger().setLevel(args.verbosity)
   logging.debug(args)
 
   env_forwards, env_assigns = partition(re.compile(r'^\w+=').match, args.include_env)
@@ -84,6 +89,9 @@ def cli(argv = sys.argv[1:]) -> int:
     if any((
       fnmatchcase(env_var, glob) for glob in env_forwards or []
     ))
+    or (
+      args.shell and env_var == 'SHELL'
+    )
   }
   envs_assigned = {
     tokens[0]: tokens[2]

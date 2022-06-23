@@ -9,7 +9,7 @@ from dataclasses import dataclass, field, fields
 from datetime import timedelta
 from logging import debug
 from textwrap import dedent
-from typing import Callable, ClassVar, Dict, List, Optional, Sequence, Tuple, Type
+from typing import Callable, ClassVar, List, Optional, Sequence, Tuple, Type
 
 from pytimeparse.timeparse import timeparse as pytimeparse
 
