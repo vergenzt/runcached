@@ -182,6 +182,7 @@ class CliArgs:
       for field in fields(cls) 
       for add_arg_fn in field.metadata[cls.ARGSPEC_KEY]
     ]
+    known_args, _rest = parser.parse_known_args(argv)
 
     extra_argvs = []
     for k,v in os.environ.items():
@@ -190,10 +191,20 @@ class CliArgs:
 
     for action in actions:
       for option_string in action.option_strings:
-        if val := os.environ.get('RUNCACHED' + re.sub('[^a-zA-Z0-9]+', '_', option_string).upper()):
+
+        envized_option_string = re.sub('[^a-zA-Z0-9]+', '_', option_string).upper()
+        if val := os.environ.get('RUNCACHED' + envized_option_string):
           extra_argvs.append(option_string)
           if action.nargs:
             extra_argvs.append(val)
+
+        if (cmd := getattr(known_args, 'COMMAND')) \
+          and (cmd_first_word := cmd[0]) \
+          and (cmd_specific_val := os.environ.get('RUNCACHED' + envized_option_string + '__' + cmd_first_word)):
+
+          extra_argvs.append(option_string)
+          if action.nargs:
+            extra_argvs.append(cmd_specific_val)
 
     if extra_argvs:
       debug('Extra args from env vars: %s', extra_argvs)

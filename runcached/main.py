@@ -86,7 +86,7 @@ def cli(argv = sys.argv[1:]) -> int:
     sys.addaudithook(lambda *a: print('[runcached:DEBUG]', *a, file=sys.stderr) if a[0] == 'subprocess.Popen' else None)
 
   args, parser = CliArgs.parse(argv)
-  if args.COMMAND[0] == '--':
+  if args.COMMAND and args.COMMAND[0] == '--':
     args.COMMAND = args.COMMAND[1:]
 
   logging.getLogger().setLevel(args.verbosity)
@@ -130,7 +130,7 @@ def cli(argv = sys.argv[1:]) -> int:
     result = cfg.run_with_caching(cache, args)
     return result.write()
   else:
-    parser.print_usage()
+    parser.print_help()
     return 1
 
 if __name__=='__main__':
