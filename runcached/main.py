@@ -3,9 +3,11 @@ import os
 import re
 import shlex
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 from fnmatch import fnmatchcase
+from functools import cached_property
+from hashlib import sha256
 from subprocess import run
 from typing import List, Mapping, Optional, cast
 
@@ -55,15 +57,22 @@ class RunConfig:
     )
     return RunResult(started_at, result.returncode, result.stdout, result.stderr)
 
+  @cached_property
+  def _cacheable(self) -> 'RunConfig':
+    return replace(self, env={
+      k: sha256(v.encode('utf-8')).hexdigest()
+      for k, v in self.env.items()
+    })
+
   def run_with_caching(self, cache: diskcache.Cache, args: CliArgs) -> 'RunResult':
     logging.debug(self)
     min_started_at = datetime.now() - args.ttl
 
-    if (result := cast(RunResult, cache.get(self))) and result.started_at >= min_started_at:
+    if (result := cast(RunResult, cache.get(self._cacheable))) and result.started_at >= min_started_at:
       logging.info(f'Using cached result for {self} from {result.started_at}.')
     elif result := self._run_without_caching():
       if result.return_code == 0 or args.keep_failures:
-        cache.set(self, result)
+        cache.set(self._cacheable, result)
       else:
         logging.warn(f'Command returned {result.return_code} and --keep-failures not specified; refusing to cache.')
 
