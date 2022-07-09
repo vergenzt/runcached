@@ -85,9 +85,10 @@ class CliArgs:
       default=['HOME'],
       help=dedent('''
         Include named environment variable(s) when computing cache key. Separate with
-        commas. May assign new value with VAR=value, or include existing by simply
-        naming VAR. Wildcards allowed when declaring simple names. Aggregates across
-        default and across all -e options. [default: %(default)s]
+        commas or spaces. Escape separators with shell-style quoting. May assign new
+        value with VAR=value, or include existing by simply naming VAR. Wildcards
+        allowed when declaring simple names. Aggregates across default and across all -e
+        options. [default: %(default)s]
       '''),
     )],
   })
@@ -100,8 +101,8 @@ class CliArgs:
       action=_ExtendEachAction,
       type=lambda s: s.split(','),
       help=dedent('''
-        Exclude named environment variables when computing cache key. Separate with
-        commas. Wildcards allowed. Aggregates across all -E options, and overrides -e.
+        Exclude named environment variables when computing cache key. Same format as -e.
+        Wildcards allowed. Aggregates across all -E options, and overrides -e.
       '''),
     )],
   })

@@ -92,14 +92,14 @@ def cli(argv = sys.argv[1:]) -> int:
   logging.getLogger().setLevel(args.verbosity)
   logging.debug(args)
 
-  env_forwards, env_assigns = partition(re.compile(r'^\w+=').match, args.include_env)
+  env_forwards, env_assigns = map(list, partition(lambda s: '=' in s, args.include_env))
   envs_forwarded = {
-    env_var: env_val for env_var, env_val in os.environ.items()
-    if any((
-      fnmatchcase(env_var, glob) for glob in env_forwards or []
-    ))
+    name: val for name, val in os.environ.items()
+    if any([
+      fnmatchcase(name, glob) for glob in env_forwards or []
+    ])
     or (
-      args.shell and env_var == 'SHELL'
+      args.shell and name == 'SHELL'
     )
   }
   envs_assigned = {
