@@ -1,6 +1,5 @@
 import logging
 import os
-import re
 import shlex
 import sys
 from dataclasses import dataclass, field, replace
@@ -13,7 +12,7 @@ from typing import List, Mapping, Optional, cast
 
 import appdirs
 import diskcache
-from more_itertools import only, partition
+from more_itertools import partition
 
 from .args import CliArgs
 
