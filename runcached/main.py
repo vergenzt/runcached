@@ -85,8 +85,6 @@ def cli(argv = sys.argv[1:]) -> int:
     sys.addaudithook(lambda *a: print('[runcached:DEBUG]', *a, file=sys.stderr) if a[0] == 'subprocess.Popen' else None)
 
   args, parser = CliArgs.parse(argv)
-  if args.COMMAND and args.COMMAND[0] == '--':
-    args.COMMAND = args.COMMAND[1:]
 
   logging.getLogger().setLevel(args.verbosity)
   logging.debug(args)

@@ -1,4 +1,3 @@
-from itertools import filterfalse
 import logging
 import os
 import re
@@ -7,6 +6,7 @@ import sys
 from argparse import REMAINDER, Action, ArgumentParser, Namespace
 from dataclasses import dataclass, field, fields
 from datetime import timedelta
+from itertools import filterfalse
 from logging import debug
 from textwrap import dedent
 from typing import Callable, ClassVar, List, Optional, Sequence, Tuple, Type
@@ -183,6 +183,8 @@ class CliArgs:
       for add_arg_fn in field.metadata[cls.ARGSPEC_KEY]
     ]
     known_args, _rest = parser.parse_known_args(argv)
+    if (cmd := getattr(known_args, 'COMMAND')) and cmd[0] == '--':
+      cmd.pop(0)
 
     extra_argvs = []
     for k,v in os.environ.items():
@@ -213,6 +215,8 @@ class CliArgs:
       argv.insert(0, extra_argv)
 
     known_args, _rest = parser.parse_known_args(argv)
+    if (cmd := getattr(known_args, 'COMMAND')) and cmd[0] == '--':
+      cmd.pop(0)
     args = cls(**known_args.__dict__)
 
     return args, parser
