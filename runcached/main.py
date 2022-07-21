@@ -80,7 +80,7 @@ class RunConfig:
 
 def cli(argv = sys.argv[1:]) -> int:
   logging.basicConfig(format='[runcached:%(levelname)s] %(message)s')
-  if {'-v', '--verbose'} & set(argv):
+  if {'-v', '--verbose'} & set(argv) or os.environ.get('RUNCACHED_VERBOSE') or os.environ.get('RUNCACHED_v'):
     logging.getLogger().setLevel(logging.DEBUG)
     sys.addaudithook(lambda *a: print('[runcached:DEBUG]', *a, file=sys.stderr) if a[0] == 'subprocess.Popen' else None)
 
