@@ -8,7 +8,7 @@ from dataclasses import dataclass, field, fields
 from datetime import timedelta
 from logging import debug
 from textwrap import dedent
-from typing import Callable, ClassVar, List, Optional, Sequence, Tuple, Type
+from typing import Callable, ClassVar, Dict, List, Optional, Sequence, Tuple, Type
 
 from pytimeparse.timeparse import timeparse as pytimeparse
 from trycast import isassignable
@@ -191,22 +191,36 @@ class CliArgs:
       if k.startswith('RUNCACHED_'):
         debug('Environment var %s=%s', k, v)
 
-    for action in actions:
-      for option_string in action.option_strings:
+    opt_actions: Dict[str, Action] = {
+      option_string: action
+      for action in actions
+      for option_string in action.option_strings
+    }
+    opts_envized: Dict[str, str] = {
+      opt: (
+        # require envvar to match case for single-letter options
+        envized_opt if len(envized_opt.strip('_')) == 1
+        else envized_opt.upper()
+      )
+      for opt in opt_actions.keys()
+      if (envized_opt := re.sub('[^a-zA-Z0-9]+', '_', opt))
+    }
 
-        envized_option_string = re.sub('[^a-zA-Z0-9]+', '_', option_string).upper()
-        if val := os.environ.get('RUNCACHED' + envized_option_string):
-          extra_argvs.append(option_string)
-          if action.nargs:
-            extra_argvs.append(val)
+    for opt, envized_opt in opts_envized.items():
+      action = opt_actions[opt]
 
-        if (cmd := getattr(known_args, 'COMMAND')) \
-          and (cmd_first_word := cmd[0]) \
-          and (cmd_specific_val := os.environ.get('RUNCACHED' + envized_option_string + '__' + cmd_first_word)):
+      if val := os.environ.get('RUNCACHED' + envized_opt):
+        extra_argvs.append(opt)
+        if action.nargs is None or action.nargs:
+          extra_argvs.append(val)
 
-          extra_argvs.append(option_string)
-          if action.nargs:
-            extra_argvs.append(cmd_specific_val)
+      if (cmd := getattr(known_args, 'COMMAND')) \
+        and (cmd_first_word := cmd[0]) \
+        and (cmd_specific_val := os.environ.get('RUNCACHED' + envized_opt + '__' + cmd_first_word)):
+
+        extra_argvs.append(opt)
+        if action.nargs is None or action.nargs:
+          extra_argvs.append(cmd_specific_val)
 
     if extra_argvs:
       debug('Extra args from env vars: %s', extra_argvs)
