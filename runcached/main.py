@@ -1,20 +1,25 @@
 import logging
 import os
+import re
 import shlex
 import sys
 from dataclasses import dataclass, field, replace
 from datetime import datetime
 from fnmatch import fnmatchcase
-from functools import cached_property
+from functools import cached_property, partial
 from hashlib import sha256
 from subprocess import run
-from typing import List, Mapping, Optional, cast
+from typing import Callable, List, Mapping, Optional, cast
 
 import appdirs
 import diskcache
 from more_itertools import partition
 
 from .args import CliArgs
+
+
+# https://stackoverflow.com/a/14693789
+STRIP_ANSI_ESCAPES: Callable[[str], str] = partial(re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])').sub, '')
 
 
 @dataclass(frozen=True)
@@ -41,6 +46,7 @@ class RunConfig:
   input: Optional[str] = None
   shell: bool = False
   shlex: bool = False
+  strip_colors: bool = False
   custom_cache_key: Optional[str] = None
 
   def _run_without_caching(self) -> 'RunResult':
@@ -54,7 +60,12 @@ class RunConfig:
       text=True,
       capture_output=True,
     )
-    return RunResult(started_at, result.returncode, result.stdout, result.stderr)
+    return RunResult(
+      started_at,
+      result.returncode,
+      STRIP_ANSI_ESCAPES(result.stdout) if self.strip_colors else result.stdout,
+      result.stderr
+    )
 
   @cached_property
   def _cacheable(self) -> 'RunConfig':
@@ -117,6 +128,7 @@ def cli(argv = sys.argv[1:]) -> int:
     env = envs_remaining,
     shell = args.shell,
     shlex = args.shlex,
+    strip_colors = args.strip_colors,
     input = sys.stdin.read() if args.stdin else None,
   )
 

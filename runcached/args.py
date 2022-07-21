@@ -149,6 +149,27 @@ class CliArgs:
     ],
   })
 
+  strip_colors: bool = field(metadata={
+    ARGSPEC_KEY: [
+      ArgSpec(
+        '--strip-colors', '-C',
+        action='store_true',
+        default=not sys.stdout.isatty(),
+        help=dedent('''
+          Strip ANSI escape sequences when printing cached output. Defaults to true if
+          stdout is not a TTY.
+        '''),
+      ),
+      ArgSpec(
+        '--no-strip-colors', '-c',
+        action='store_false',
+        help=dedent('''
+          Do not strip ANSI escape sequences when printing cached output.
+        '''),
+      ),
+    ],
+  })
+
   verbosity: int = field(metadata={
     ARGSPEC_KEY: [
       ArgSpec(
