@@ -30,10 +30,18 @@ category = "main"
 optional = false
 python-versions = "*"
 
+[[package]]
+name = "trycast"
+version = "1.0.0"
+description = ""
+category = "main"
+optional = false
+python-versions = ">=3.7.4,<4.0.0"
+
 [metadata]
 lock-version = "1.1"
 python-versions = "~3.9"
-content-hash = "ace41eec53eab6d517818ab48f2a762aabf2edd50b60d2311edeb485f9548cd7"
+content-hash = "94e434c68545e75c7966ebe473cb9b08d3c1e5d673835f8b0b2a39c93f1e9a63"
 
 [metadata.files]
 appdirs = [
@@ -52,3 +60,4 @@ pytimeparse = [
     {file = "pytimeparse-1.1.8-py2.py3-none-any.whl", hash = "sha256:04b7be6cc8bd9f5647a6325444926c3ac34ee6bc7e69da4367ba282f076036bd"},
     {file = "pytimeparse-1.1.8.tar.gz", hash = "sha256:e86136477be924d7e670646a98561957e8ca7308d44841e21f5ddea757556a0a"},
 ]
+trycast = []

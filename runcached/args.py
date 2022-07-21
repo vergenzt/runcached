@@ -11,6 +11,7 @@ from textwrap import dedent
 from typing import Callable, ClassVar, List, Optional, Sequence, Tuple, Type
 
 from pytimeparse.timeparse import timeparse as pytimeparse
+from trycast import isassignable
 
 
 class _ExtendEachAction(Action):
@@ -74,7 +75,7 @@ class CliArgs:
     ],
   })
 
-  include_env: List[str] = field(metadata={
+  include_env: Optional[List[str]] = field(metadata={
     ARGSPEC_KEY: [ArgSpec(
       '--include-env', '-e',
       metavar='VAR[,...]',
@@ -92,7 +93,7 @@ class CliArgs:
     )],
   })
 
-  exclude_env: List[str] = field(metadata={
+  exclude_env: Optional[List[str]] = field(metadata={
     ARGSPEC_KEY: [ArgSpec(
       '--exclude-env', '-E',
       metavar='VAR[,...]',
@@ -222,7 +223,4 @@ class CliArgs:
 
   def __post_init__(self):
     for field in fields(self):
-      try:
-        assert isinstance(val := getattr(self, field.name), field.type), f'{field.name} {val} should be a {field.type}!'
-      except TypeError:
-        pass # can't check generics
+      assert isassignable(val := getattr(self, field.name), field.type), f'{field.name} {val} should be a {field.type}!'

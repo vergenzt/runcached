@@ -10,6 +10,7 @@ appdirs = "^1.4.4"
 diskcache = "^5.4.0"
 pytimeparse = "^1.1.8"
 more-itertools = "^8.13.0"
+trycast = "*"
 
 [tool.poetry.dev-dependencies]
 
