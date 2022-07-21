@@ -6,7 +6,6 @@ import sys
 from argparse import REMAINDER, Action, ArgumentParser, Namespace
 from dataclasses import dataclass, field, fields
 from datetime import timedelta
-from itertools import filterfalse
 from logging import debug
 from textwrap import dedent
 from typing import Callable, ClassVar, List, Optional, Sequence, Tuple, Type
@@ -93,7 +92,7 @@ class CliArgs:
     )],
   })
 
-  exclude_env: str = field(metadata={
+  exclude_env: List[str] = field(metadata={
     ARGSPEC_KEY: [ArgSpec(
       '--exclude-env', '-E',
       metavar='VAR[,...]',
@@ -220,3 +219,10 @@ class CliArgs:
     args = cls(**known_args.__dict__)
 
     return args, parser
+
+  def __post_init__(self):
+    for field in fields(self):
+      try:
+        assert isinstance(val := getattr(self, field.name), field.type), f'{field.name} {val} should be a {field.type}!'
+      except TypeError:
+        pass # can't check generics
