@@ -5,7 +5,6 @@ import shlex
 import sys
 from dataclasses import dataclass, field, replace
 from datetime import datetime
-from fnmatch import fnmatchcase
 from functools import cached_property, partial
 from hashlib import sha256
 from subprocess import run
@@ -13,9 +12,8 @@ from typing import Callable, List, Mapping, Optional, cast
 
 import appdirs
 import diskcache
-from more_itertools import partition
 
-from .args import CliArgs
+from .args import CliArgs, EnvArg
 
 
 # https://stackoverflow.com/a/14693789
@@ -42,7 +40,8 @@ class RunResult:
 @dataclass(frozen=True)
 class RunConfig:
   command: List[str]
-  env: Mapping[str,str] = field(default_factory=dict)
+  envs_for_cache: Mapping[str,str] = field(default_factory=dict)
+  envs_for_passthru: Mapping[str,str] = field(default_factory=dict)
   input: Optional[str] = None
   shell: bool = False
   shlex: bool = False
@@ -55,7 +54,7 @@ class RunConfig:
       args=(shlex.join if self.shlex else ' '.join)(self.command) if self.shell else self.command,
       shell=self.shell,
       executable=os.environ.get('SHELL') if self.shell else None,
-      env=self.env,
+      env={ **self.envs_for_cache, **self.envs_for_passthru},
       input=self.input,
       text=True,
       capture_output=True,
@@ -69,10 +68,14 @@ class RunConfig:
 
   @cached_property
   def _cacheable(self) -> 'RunConfig':
-    return replace(self, env={
-      k: sha256(v.encode('utf-8')).hexdigest()
-      for k, v in self.env.items()
-    })
+    return replace(
+      self,
+      envs_for_passthru={},
+      envs_for_cache={
+        k: sha256(v.encode('utf-8')).hexdigest()
+        for k, v in self.envs_for_cache.items()
+      },
+    )
 
   def run_with_caching(self, cache: diskcache.Cache, args: CliArgs) -> 'RunResult':
     logging.debug(self)
@@ -88,7 +91,6 @@ class RunConfig:
 
     return result
 
-
 def cli(argv = sys.argv[1:]) -> int:
   logging.basicConfig(format='[runcached:%(levelname)s] %(message)s')
   if {'-v', '--verbose'} & set(argv) or os.environ.get('RUNCACHED_VERBOSE') or os.environ.get('RUNCACHED_v'):
@@ -100,32 +102,16 @@ def cli(argv = sys.argv[1:]) -> int:
   logging.getLogger().setLevel(args.verbosity)
   logging.debug(args)
 
-  env_forwards, env_assigns = map(list, partition(lambda s: '=' in s, args.include_env))
-  envs_forwarded = {
-    name: val for name, val in os.environ.items()
-    if any([
-      fnmatchcase(name, glob) for glob in env_forwards or []
-    ])
-    or (
-      args.shell and name == 'SHELL'
-    )
-  }
-  envs_assigned = {
-    tokens[0]: tokens[2]
-    for env_assign in env_assigns
-    if (tokens := list(shlex.shlex(env_assign, posix=True, punctuation_chars='=')))
-  }
-  envs_included = envs_forwarded | envs_assigned
-  envs_remaining = {
-    env_var: env_val for env_var, env_val in envs_included.items()
-    if not any((
-      fnmatchcase(env_var, glob) for glob in args.exclude_env or []
-    ))
-  }
+  envs_for_cache = EnvArg.filter_envvars(os.environ, args.include_env or [], args.exclude_env or [])
+  envs_for_passthru = EnvArg.filter_envvars(os.environ, args.passthru_env or [], args.exclude_env or [])
+
+  if args.shell:
+    envs_for_cache = { **envs_for_cache, 'SHELL': os.environ.get('SHELL') }
 
   cfg = RunConfig(
     command = args.COMMAND,
-    env = envs_remaining,
+    envs_for_cache = envs_for_cache,
+    envs_for_passthru = envs_for_passthru,
     shell = args.shell,
     shlex = args.shlex,
     strip_colors = args.strip_colors,

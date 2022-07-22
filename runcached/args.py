@@ -6,19 +6,54 @@ import sys
 from argparse import REMAINDER, Action, ArgumentParser, Namespace
 from dataclasses import dataclass, field, fields
 from datetime import timedelta
+from fnmatch import fnmatchcase
+from functools import partial
 from logging import debug
 from textwrap import dedent
-from typing import Callable, ClassVar, Dict, List, Optional, Sequence, Tuple, Type
+from typing import Callable, ClassVar, Dict, List, Mapping, Optional, Sequence, Tuple, Type, cast
 
 from pytimeparse.timeparse import timeparse as pytimeparse
 from trycast import isassignable
 
 
+@dataclass
+class EnvArg:
+  envvar: str
+  assigned_value: Optional[str] = None
+
+  def matches(self, envvar: str) -> bool:
+    return fnmatchcase(envvar, self.envvar)
+
+  @staticmethod
+  def filter_envvars(envvars: Mapping[str, str], inclusions: List['EnvArg'], exclusions: List['EnvArg']) -> Mapping[str, str]:
+    assignments = { arg.envvar: arg.assigned_value for arg in inclusions if arg.assigned_value is not None }
+    return {
+      name: assignments.get(name, val)
+      for name, val in envvars.items()
+      if any(arg.matches(name) for arg in inclusions)
+      and not any(arg.matches(name) for arg in exclusions)
+    }
+
+  @classmethod
+  def from_env_arg(cls, envarg: str, assignment_allowed: bool = False) -> 'EnvArg':
+    if assignment_allowed:
+      (envarg_shlexed,) = shlex.split(envarg) # unnest shell quotes; should always only be one value
+      (envvar, assigned_value) = envarg_shlexed.split('=', maxsplit=1)
+      return cls(envvar, assigned_value)
+    else:
+      return cls(envarg)
+
+  @classmethod
+  def from_env_args(cls, arg: str, assignment_allowed: bool = False) -> List['EnvArg']:
+    envargs = filter(','.__ne__, shlex.shlex(arg, posix=True, punctuation_chars=','))
+    return list(map( cls.from_env_arg, envargs ))
+
+
 class _ExtendEachAction(Action):
-  def __call__(self, parser: ArgumentParser, namespace: Namespace, values: Sequence[str], option_string: Optional[str] = None):
-    for next_value in values:
-      _values = getattr(namespace, self.dest, None) or []
-      _values.extend(next_value)
+  def __call__(self, parser: ArgumentParser, namespace: Namespace, args: List[List[EnvArg]], option_string: Optional[str] = None):
+    for arg in args:
+      _values = cast(List[EnvArg], getattr(namespace, self.dest, None) or [])
+      _values.extend(arg)
       setattr(namespace, self.dest, _values)
 
 
@@ -75,34 +110,50 @@ class CliArgs:
     ],
   })
 
-  include_env: Optional[List[str]] = field(metadata={
+  include_env: Optional[List[EnvArg]] = field(metadata={
     ARGSPEC_KEY: [ArgSpec(
       '--include-env', '-e',
       metavar='VAR[,...]',
       nargs=1,
       action=_ExtendEachAction,
-      type=lambda s: [t for t in shlex.shlex(s, posix=True, punctuation_chars=',') if t != ','],
-      default=['HOME'],
+      type=partial(EnvArg.from_env_args, assignment_allowed=True),
       help=dedent('''
-        Include named environment variable(s) when computing cache key. Separate with
-        commas or spaces. Escape separators with shell-style quoting. May assign new
-        value with VAR=value, or include existing by simply naming VAR. Wildcards
-        allowed when declaring simple names. Aggregates across default and across all -e
-        options. [default: %(default)s]
+        Include named environment variable(s) when running command and when computing
+        cache key. Separate with commas or spaces. Escape separators with shell-style
+        quoting. May assign new value with VAR=value, or forward existing value by
+        simply naming VAR. Wildcards allowed when declaring without assignment.
+        Aggregates across all -e options.
       '''),
     )],
   })
 
-  exclude_env: Optional[List[str]] = field(metadata={
+  passthru_env: Optional[List[EnvArg]] = field(metadata={
+    ARGSPEC_KEY: [ArgSpec(
+      '--passthru-env', '-p',
+      metavar='VAR[,...]',
+      nargs=1,
+      action=_ExtendEachAction,
+      type=partial(EnvArg.from_env_args, assignment_allowed=True),
+      default=EnvArg.from_env_args('HOME,PATH,TMPDIR'),
+      help=dedent('''
+        Pass named environment variable(s) through to command without caching them.
+        Same format as -e. Any assignments override values from -e. Aggregates across
+        all -p options. [defaults: %(default)s]
+      '''),
+    )],
+  })
+
+  exclude_env: Optional[List[EnvArg]] = field(metadata={
     ARGSPEC_KEY: [ArgSpec(
       '--exclude-env', '-E',
       metavar='VAR[,...]',
       nargs=1,
       action=_ExtendEachAction,
-      type=lambda s: s.split(','),
+      type=partial(EnvArg.from_env_args, assignment_allowed=False),
       help=dedent('''
-        Exclude named environment variables when computing cache key. Same format as -e.
-        Wildcards allowed. Aggregates across all -E options, and overrides -e.
+        Do not pass named environment variable(s) through to command, nor include them
+        when computing cache key. Same format as -e and -p except assignments are
+        disallowed. Aggregates across all -E options, and overrides -e and -p.
       '''),
     )],
   })
