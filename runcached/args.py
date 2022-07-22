@@ -3,7 +3,7 @@ import os
 import re
 import shlex
 import sys
-from argparse import REMAINDER, Action, ArgumentParser, Namespace
+from argparse import REMAINDER, Action, ArgumentParser, HelpFormatter, Namespace
 from dataclasses import dataclass, field, fields
 from datetime import timedelta
 from fnmatch import fnmatchcase
@@ -18,6 +18,12 @@ from trycast import isassignable
 
 def pytimeparse_or_int_seconds(s: str) -> timedelta:
   return timedelta(seconds=pytimeparse(s) or int(s))
+
+
+# https://stackoverflow.com/a/29485128
+class BlankLinesHelpFormatter(HelpFormatter):
+  def _split_lines(self, text, width):
+    return super()._split_lines(text, width) + ['']
 
 
 @dataclass
@@ -252,7 +258,7 @@ class CliArgs:
 
   @classmethod
   def parse(cls: Type['CliArgs'], argv = sys.argv[1:]) -> Tuple['CliArgs', ArgumentParser]:
-    parser = ArgumentParser(description=cls.__doc__)
+    parser = ArgumentParser(description=cls.__doc__, formatter_class=BlankLinesHelpFormatter)
     actions: List[Action] = [
       add_arg_fn(parser, dest=field.name)
       for field in fields(cls) 
