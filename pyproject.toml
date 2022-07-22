@@ -6,9 +6,9 @@ authors = ["Tim Vergenz <vergenzt@gmail.com>"]
 
 [tool.poetry.dependencies]
 python = "~3.9"
-appdirs = "^1.4.4"
-diskcache = "^5.4.0"
-pytimeparse = "^1.1.8"
+appdirs = "*"
+diskcache = "*"
+pytimeparse = "*"
 trycast = "*"
 
 [tool.poetry.dev-dependencies]
