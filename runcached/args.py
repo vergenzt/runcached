@@ -10,7 +10,7 @@ from fnmatch import fnmatchcase
 from functools import partial
 from logging import debug
 from textwrap import dedent
-from typing import Callable, ClassVar, Dict, List, Mapping, Optional, Sequence, Tuple, Type, cast
+from typing import Callable, ClassVar, Dict, List, Mapping, Optional, Tuple, Type, cast
 
 from pytimeparse.timeparse import timeparse as pytimeparse
 from trycast import isassignable
