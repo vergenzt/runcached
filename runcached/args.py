@@ -16,6 +16,10 @@ from pytimeparse.timeparse import timeparse as pytimeparse
 from trycast import isassignable
 
 
+def pytimeparse_or_int_seconds(s: str) -> timedelta:
+  return timedelta(seconds=pytimeparse(s) or int(s))
+
+
 @dataclass
 class EnvArg:
   envvar: str
@@ -70,7 +74,7 @@ class CliArgs:
     ARGSPEC_KEY: [ArgSpec(
       '--ttl', '-t',
       metavar='DURATION',
-      type=lambda s: timedelta(seconds=pytimeparse(s)),
+      type=pytimeparse_or_int_seconds,
       default='1d',
       help=dedent('''
         Max length of time for which to cache command results.
