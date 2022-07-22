@@ -46,9 +46,7 @@ optional arguments:
   --passthru-env VAR[,...], -p VAR[,...]
                         Pass named environment variable(s) through to command without caching
                         them. Same format as -e. Any assignments override values from -e.
-                        Aggregates across all -p options. [defaults: [EnvArg(envvar='HOME',
-                        assigned_value=None), EnvArg(envvar='PATH', assigned_value=None),
-                        EnvArg(envvar='TMPDIR', assigned_value=None)]]
+                        Aggregates across all -p options. [defaults: HOME,PATH,TMPDIR]
                         
   --exclude-env VAR[,...], -E VAR[,...]
                         Do not pass named environment variable(s) through to command, nor include
@@ -77,7 +75,7 @@ optional arguments:
   --verbose, -v         Set log level to debug.
                         
 ```
-<!--[[[end]]] (checksum: 6b74255848139f1ab7e6e04adb64aa15)-->
+<!--[[[end]]] (checksum: fa0f52d310c7859cc8988e965f636400)-->
 
 ## Prior Art
 

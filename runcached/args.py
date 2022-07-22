@@ -144,7 +144,7 @@ class CliArgs:
       nargs=1,
       action=_ExtendEachAction,
       type=partial(EnvArg.from_env_args, assignment_allowed=True),
-      default=EnvArg.from_env_args('HOME,PATH,TMPDIR'),
+      default='HOME,PATH,TMPDIR',
       help=dedent('''
         Pass named environment variable(s) through to command without caching them.
         Same format as -e. Any assignments override values from -e. Aggregates across
