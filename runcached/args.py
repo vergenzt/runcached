@@ -225,7 +225,7 @@ class CliArgs:
         '--no-strip-colors', '-c',
         action='store_false',
         help=dedent('''
-          Do not strip ANSI escape sequences when printing cached output.
+          Do not strip ANSI escape sequences when printing cached output. Overrides -C.
         '''),
       ),
     ],
