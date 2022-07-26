@@ -13,12 +13,13 @@ usage: runcached [-h] [--ttl DURATION] [--keep-failures] [--include-stdin]
                  [--exclude-stdin] [--include-env VAR[,...]] [--passthru-env VAR[,...]]
                  [--exclude-env VAR[,...]] [--shell] [--no-shell] [--shlex] [--no-shlex]
                  [--strip-colors] [--no-strip-colors] [--quiet] [--verbose]
-                 ...
+                 COMMAND [ARGS ...]
 
-Runs the given COMMAND with caching of stdout and stderr.
+Runs the given command with caching of stdout and stderr.
 
 positional arguments:
   COMMAND
+  ARGS
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -56,9 +57,9 @@ optional arguments:
                         -p except assignments are disallowed. Aggregates across all -E
                         options, and overrides -e and -p.
                         
-  --shell, -s           Pass COMMAND to $SHELL for execution. [default: False]
+  --shell, -s           Pass command to $SHELL for execution. [default: False]
                         
-  --no-shell, -S        Do not pass COMMAND to $SHELL for execution. Overrides -s.
+  --no-shell, -S        Do not pass command to $SHELL for execution. Overrides -s.
                         
   --shlex, -l           Re-quote command line args before passing to $SHELL. Only used
                         if shell is true. [default: False]
@@ -79,7 +80,7 @@ optional arguments:
   --verbose, -v         Set log level to debug.
                         
 ```
-<!--[[[end]]] (checksum: d296254290be54dd141da663e3aa06eb)-->
+<!--[[[end]]] (checksum: d25bba49cef06b9f81e4d6ec0f795766)-->
 
 ## Prior Art
 

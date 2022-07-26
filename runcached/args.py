@@ -3,14 +3,14 @@ import os
 import re
 import shlex
 import sys
-from argparse import REMAINDER, Action, ArgumentParser, HelpFormatter, Namespace
+from argparse import ZERO_OR_MORE, Action, ArgumentParser, HelpFormatter, Namespace
 from dataclasses import dataclass, field, fields
 from datetime import timedelta
 from fnmatch import fnmatchcase
 from functools import partial
 from logging import debug
 from textwrap import dedent
-from typing import Callable, ClassVar, Dict, List, Mapping, Optional, Tuple, Type, cast
+from typing import Callable, ClassVar, Dict, Iterator, List, Mapping, Optional, Tuple, Type, cast
 
 from pytimeparse.timeparse import timeparse as pytimeparse
 from trycast import isassignable
@@ -70,7 +70,7 @@ class _ExtendEachAction(Action):
 @dataclass
 class CliArgs:
   """
-  Runs the given COMMAND with caching of stdout and stderr.
+  Runs the given command with caching of stdout and stderr.
   """
 
   ARGSPEC_KEY: ClassVar[object] = object()
@@ -175,14 +175,14 @@ class CliArgs:
         action='store_true',
         default=False,
         help=dedent('''
-          Pass COMMAND to $SHELL for execution. [default: %(default)s]
+          Pass command to $SHELL for execution. [default: %(default)s]
         '''),
       ),
       ArgSpec(
         '--no-shell', '-S',
         action='store_false',
         help=dedent('''
-          Do not pass COMMAND to $SHELL for execution. Overrides -s.
+          Do not pass command to $SHELL for execution. Overrides -s.
         '''),
       ),
     ],
@@ -250,71 +250,86 @@ class CliArgs:
   })
 
   COMMAND: List[str] = field(metadata={
-    ARGSPEC_KEY: [ArgSpec(
-      nargs=REMAINDER,
-      metavar='COMMAND',
-    )],
+    ARGSPEC_KEY: [
+      ArgSpec(
+        type=lambda arg: [arg], # start a list
+        metavar='COMMAND',
+      ),
+      ArgSpec(
+        nargs=ZERO_OR_MORE,
+        action='extend',
+        metavar='ARGS',
+      )
+    ],
   })
 
   @classmethod
-  def parse(cls: Type['CliArgs'], argv = sys.argv[1:]) -> Tuple['CliArgs', ArgumentParser]:
+  def _get_argument_parser(cls) -> ArgumentParser:
     parser = ArgumentParser(description=cls.__doc__, formatter_class=BlankLinesHelpFormatter)
-    actions: List[Action] = [
+    [
       add_arg_fn(parser, dest=field.name)
       for field in fields(cls) 
       for add_arg_fn in field.metadata[cls.ARGSPEC_KEY]
     ]
-    known_args, _rest = parser.parse_known_args(argv)
-    if (cmd := getattr(known_args, 'COMMAND')) and cmd[0] == '--':
-      cmd.pop(0)
+    return parser
 
-    extra_argvs = []
-    for k,v in os.environ.items():
-      if k.startswith('RUNCACHED_'):
-        debug('Environment var %s=%s', k, v)
+  @classmethod
+  def _get_command(cls, argv: List[str]) -> List[str]:
+    args, _rest = cls._get_argument_parser().parse_known_args(argv)
+    cmd: List[str] = args.COMMAND[1:] if args.COMMAND[0] == '--' else args.COMMAND
+    return cmd
 
-    opt_actions: Dict[str, Action] = {
-      option_string: action
-      for action in actions
-      for option_string in action.option_strings
+  @staticmethod
+  def _envize_string(s: str, keep_case: Callable[[str],bool] = lambda _: True) -> str:
+    subbed = re.sub(r'[^a-zA-Z0-9]+', '_', s).strip('_')
+    return subbed if keep_case(subbed) else subbed.upper()
+
+  _ENVVAR_RE = r'''
+    (?x)^
+      RUNCACHED_
+      (?P<envized_opt> [a-zA-Z0-9]+ (?:_[a-zA-Z0-9]+)* ) # option part does not allow double underscores
+      (?: __ (?P<envized_cmd> [\w\*]+) )? # cmd part allows double underscores
+    $
+  '''
+
+  @classmethod
+  def _get_arguments_from_env(cls, parser: ArgumentParser, cmd: List[str]) -> Iterator[str]:
+    envized_cmd: str = '__'.join(map(cls._envize_string, cmd))
+    debug(f'Envized command: {envized_cmd}')
+
+    envized_opts: Dict[str, str] = {
+      cls._envize_string(opt, keep_case=lambda s: len(s) == 1): opt
+      for opt in parser._option_string_actions.keys()
     }
-    opts_envized: Dict[str, str] = {
-      opt: (
-        # require envvar to match case for single-letter options
-        envized_opt if len(envized_opt.strip('_')) == 1
-        else envized_opt.upper()
-      )
-      for opt in opt_actions.keys()
-      if (envized_opt := re.sub('[^a-zA-Z0-9]+', '_', opt))
-    }
 
-    for opt, envized_opt in opts_envized.items():
-      action = opt_actions[opt]
+    for envvar, envvar_val in sorted(os.environ.items()):
+      if not envvar.startswith('RUNCACHED_') or not envvar_val:
+        continue
 
-      if val := os.environ.get('RUNCACHED' + envized_opt):
-        extra_argvs.append(opt)
-        if action.nargs is None or action.nargs:
-          extra_argvs.append(val)
+      if not (match := re.match(cls._ENVVAR_RE, envvar)):
+        raise ValueError(f'Envvar {envvar}: Could not parse. Should match {repr(cls._ENVVAR_RE)}.')
 
-      if (cmd := getattr(known_args, 'COMMAND')) \
-        and (cmd_first_word := cmd[0]) \
-        and (cmd_specific_val := os.environ.get('RUNCACHED' + envized_opt + '__' + cmd_first_word)):
+      if (_envized_opt := match['envized_opt']) not in envized_opts:
+        raise ValueError(f'Envvar {envvar}: Unrecognized option {repr(_envized_opt)}. Must be one of {envized_opts.keys()}.')
 
-        extra_argvs.append(opt)
-        if action.nargs is None or action.nargs:
-          extra_argvs.append(cmd_specific_val)
+      if (_envized_cmd := match['envized_cmd']) and not envized_cmd.startswith(_envized_cmd):
+        debug(f'Envvar {envvar}: envized command does not start with {repr(_envized_cmd)}; skipping.')
+        continue
 
-    if extra_argvs:
-      debug('Extra args from env vars: %s', extra_argvs)
+      opt = envized_opts[_envized_opt]
+      action = parser._option_string_actions[opt]
 
-    for extra_argv in reversed(extra_argvs):
-      argv.insert(0, extra_argv)
+      extra_args = [opt] + ([envvar_val] if action.nargs is None or action.nargs else [])
+      debug(f'Extra args from env var {envvar}: {extra_args}')
+      yield from extra_args
 
-    known_args, _rest = parser.parse_known_args(argv)
-    if (cmd := getattr(known_args, 'COMMAND')) and cmd[0] == '--':
-      cmd.pop(0)
-    args = cls(**known_args.__dict__)
-
+  @classmethod
+  def parse(cls: Type['CliArgs'], argv: List[str] = sys.argv[1:]) -> Tuple['CliArgs', ArgumentParser]:
+    parser = cls._get_argument_parser()
+    cmd = cls._get_command(argv)
+    argv = list(cls._get_arguments_from_env(parser, cmd)) + argv
+    args_namespace = parser.parse_args(argv)
+    args = cls(**args_namespace.__dict__)
     return args, parser
 
   def __post_init__(self):
