@@ -284,8 +284,8 @@ class CliArgs:
     subbed = re.sub(r'[^a-zA-Z0-9]+', '_', s).strip('_')
     return subbed if keep_case(subbed) else subbed.upper()
 
-  _ENVVAR_RE = r'''
-    (?x)^
+  _ENVVAR_RE = r'''(?x)
+    ^
       RUNCACHED_
       (?P<envized_opt> [a-zA-Z0-9]+ (?:_[a-zA-Z0-9]+)* ) # option part does not allow double underscores
       (?: __ (?P<envized_cmd> [\w\*]+) )? # cmd part allows double underscores

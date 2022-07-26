@@ -12,8 +12,9 @@ pytimeparse = "*"
 trycast = "*"
 
 [tool.poetry.dev-dependencies]
-cogapp = "^3.3.0"
-pycln = "^2.0.4"
+cogapp = "*"
+pycln = "*"
+pytest = "*"
 
 [tool.poetry.scripts]
 runcached = 'runcached.main:cli'
