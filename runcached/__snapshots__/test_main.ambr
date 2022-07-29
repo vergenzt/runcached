@@ -1,0 +1,7 @@
+# name: test_interleave
+  tuple(
+    0,
+    b'foo\nbaz\n',
+    b'bar\nboz\n',
+  )
+# ---

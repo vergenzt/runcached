@@ -10,11 +10,14 @@ appdirs = "*"
 diskcache = "*"
 pytimeparse = "*"
 trycast = "*"
+sh = "*"
 
 [tool.poetry.dev-dependencies]
 cogapp = "*"
 pycln = "*"
 pytest = "*"
+syrupy = "*"
+freezegun = "*"
 
 [tool.poetry.scripts]
 runcached = 'runcached.main:cli'
