@@ -54,7 +54,7 @@ class RunConfig:
       args=(shlex.join if self.shlex else ' '.join)(self.command) if self.shell else self.command,
       shell=self.shell,
       executable=os.environ.get('SHELL') if self.shell else None,
-      env={ **self.envs_for_cache, **self.envs_for_passthru},
+      env={ **self.envs_for_cache, **self.envs_for_passthru },
       input=self.input,
       text=True,
       capture_output=True,
@@ -130,5 +130,8 @@ def cli(argv: List[str] = sys.argv[1:]) -> int:
     parser.print_help()
     return 1
 
-if __name__=='__main__':
+def main():
   sys.exit(cli())
+
+if __name__=='__main__':
+  main()
