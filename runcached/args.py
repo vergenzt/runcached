@@ -1,83 +1,52 @@
 import logging
-import os
-import re
 import shlex
 import sys
-from argparse import ZERO_OR_MORE, Action, ArgumentParser, HelpFormatter, Namespace
-from dataclasses import dataclass, field, fields
+from argparse import ZERO_OR_MORE
+from dataclasses import dataclass, field
 from datetime import timedelta
-from fnmatch import fnmatchcase
 from functools import partial
-from logging import debug
 from textwrap import dedent
-from typing import Callable, ClassVar, Dict, Iterator, List, Mapping, Optional, Tuple, Type, cast
+from typing import List, Optional
 
 from pytimeparse.timeparse import timeparse as pytimeparse
-from trycast import isassignable
+
+from .utils.dataclass_meta_argparse import ARGS, DataclassMetaArgumentParser, argparse_arg, dataclass_meta_argument_parser
+from .utils.argparse import _IncrementAction, _ExtendEachAction, BlankLinesHelpFormatter, EnvArg
+
+
+@dataclass
+class VerbosityOpts(metaclass=DataclassMetaArgumentParser, add_help=False):
+  verbosity: int = field(metadata={
+    ARGS: [
+      argparse_arg(
+        '--quiet', '-q',
+        action=_IncrementAction,
+        increment=-10,
+        default=logging.WARN,
+        help='Decrease verbosity.',
+      ),
+      argparse_arg(
+        '--verbose', '-v',
+        action=_IncrementAction,
+        increment=10,
+        help='Increase verbosity.',
+      ),
+    ],
+  })
 
 
 def pytimeparse_or_int_seconds(s: str) -> timedelta:
   return timedelta(seconds=pytimeparse(s) or int(s))
 
 
-# https://stackoverflow.com/a/29485128
-class BlankLinesHelpFormatter(HelpFormatter):
-  def _split_lines(self, text, width):
-    return super()._split_lines(text, width) + ['']
-
-
 @dataclass
-class EnvArg:
-  envvar: str
-  assigned_value: Optional[str] = None
-
-  def matches(self, envvar: str) -> bool:
-    return fnmatchcase(envvar, self.envvar)
-
-  @staticmethod
-  def filter_envvars(envvars: Mapping[str, str], inclusions: List['EnvArg'], exclusions: List['EnvArg']) -> Mapping[str, str]:
-    assignments = { arg.envvar: arg.assigned_value for arg in inclusions if arg.assigned_value is not None }
-    return {
-      name: assignments.get(name, val)
-      for name, val in envvars.items()
-      if any(arg.matches(name) for arg in inclusions)
-      and not any(arg.matches(name) for arg in exclusions)
-    }
-
-  @classmethod
-  def from_env_arg(cls, envarg: str, assignment_allowed: bool = False) -> 'EnvArg':
-    if assignment_allowed:
-      (envarg_shlexed,) = shlex.split(envarg) # unnest shell quotes; should always only be one value
-      (envvar, assigned_value) = envarg_shlexed.split('=', maxsplit=1)
-      return cls(envvar, assigned_value)
-    else:
-      return cls(envarg)
-
-  @classmethod
-  def from_env_args(cls, arg: str, assignment_allowed: bool = False) -> List['EnvArg']:
-    envargs = filter(','.__ne__, shlex.shlex(arg, posix=True, punctuation_chars=','))
-    return list(map( cls.from_env_arg, envargs ))
-
-
-class _ExtendEachAction(Action):
-  def __call__(self, parser: ArgumentParser, namespace: Namespace, args: List[List[EnvArg]], option_string: Optional[str] = None):
-    for arg in args:
-      _values = cast(List[EnvArg], getattr(namespace, self.dest, None) or [])
-      _values.extend(arg)
-      setattr(namespace, self.dest, _values)
-
-
-@dataclass
-class CliArgs:
+class NonVerbosityOpts:
   """
   Runs the given command with caching of stdout and stderr.
   """
 
-  ARGSPEC_KEY: ClassVar[object] = object()
-  ArgSpec: ClassVar[Callable[..., Callable[[ArgumentParser], Action]]] = lambda *a, **kw: lambda self, *a2, **kw2: self.add_argument(*a, *a2, **kw, **kw2)
-
   ttl: timedelta = field(metadata={
-    ARGSPEC_KEY: [ArgSpec(
+    ARGS: [argparse_arg(
       '--ttl', '-t',
       metavar='DURATION',
       type=pytimeparse_or_int_seconds,
@@ -90,7 +59,7 @@ class CliArgs:
   })
 
   keep_failures: bool = field(metadata={
-    ARGSPEC_KEY: [ArgSpec(
+    ARGS: [argparse_arg(
       '--keep-failures', '-F',
       action='store_true',
       help=dedent('''
@@ -100,8 +69,8 @@ class CliArgs:
   })
 
   stdin: bool = field(metadata={
-    ARGSPEC_KEY: [
-      ArgSpec(
+    ARGS: [
+      argparse_arg(
         '--include-stdin', '-i',
         action='store_true',
         default=not sys.stdin.isatty(),
@@ -110,7 +79,7 @@ class CliArgs:
           stdin is included, stdin will be read until EOF before executing anything.
         '''),
       ),
-      ArgSpec(
+      argparse_arg(
         '--exclude-stdin', '-I',
         action='store_false',
         help=dedent('''
@@ -121,7 +90,7 @@ class CliArgs:
   })
 
   include_env: Optional[List[EnvArg]] = field(metadata={
-    ARGSPEC_KEY: [ArgSpec(
+    ARGS: [argparse_arg(
       '--include-env', '-e',
       metavar='VAR[,...]',
       nargs=1,
@@ -138,7 +107,7 @@ class CliArgs:
   })
 
   passthru_env: Optional[List[EnvArg]] = field(metadata={
-    ARGSPEC_KEY: [ArgSpec(
+    ARGS: [argparse_arg(
       '--passthru-env', '-p',
       metavar='VAR[,...]',
       nargs=1,
@@ -154,7 +123,7 @@ class CliArgs:
   })
 
   exclude_env: Optional[List[EnvArg]] = field(metadata={
-    ARGSPEC_KEY: [ArgSpec(
+    ARGS: [argparse_arg(
       '--exclude-env', '-E',
       metavar='VAR[,...]',
       nargs=1,
@@ -169,8 +138,8 @@ class CliArgs:
   })
 
   shell: bool = field(metadata={
-    ARGSPEC_KEY: [
-      ArgSpec(
+    ARGS: [
+      argparse_arg(
         '--shell', '-s',
         action='store_true',
         default=False,
@@ -178,7 +147,7 @@ class CliArgs:
           Pass command to $SHELL for execution. [default: %(default)s]
         '''),
       ),
-      ArgSpec(
+      argparse_arg(
         '--no-shell', '-S',
         action='store_false',
         help=dedent('''
@@ -189,8 +158,8 @@ class CliArgs:
   })
 
   shlex: bool = field(metadata={
-    ARGSPEC_KEY: [
-      ArgSpec(
+    ARGS: [
+      argparse_arg(
         '--shlex', '-l',
         action='store_true',
         default=False,
@@ -199,7 +168,7 @@ class CliArgs:
           true. [default: %(default)s]
         '''),
       ),
-      ArgSpec(
+      argparse_arg(
         '--no-shlex', '-L',
         action='store_false',
         help=dedent('''
@@ -211,8 +180,8 @@ class CliArgs:
   })
 
   strip_colors: bool = field(metadata={
-    ARGSPEC_KEY: [
-      ArgSpec(
+    ARGS: [
+      argparse_arg(
         '--strip-colors', '-C',
         action='store_true',
         default=not sys.stdout.isatty(),
@@ -221,7 +190,7 @@ class CliArgs:
           stdout is not a TTY.
         '''),
       ),
-      ArgSpec(
+      argparse_arg(
         '--no-strip-colors', '-c',
         action='store_false',
         help=dedent('''
@@ -231,107 +200,26 @@ class CliArgs:
     ],
   })
 
-  verbosity: int = field(metadata={
-    ARGSPEC_KEY: [
-      ArgSpec(
-        '--quiet', '-q',
-        action='store_const',
-        const=logging.WARN,
-        default=logging.INFO,
-        help='Set log level to warnings only.',
-      ),
-      ArgSpec(
-        '--verbose', '-v',
-        action='store_const',
-        const=logging.DEBUG,
-        help='Set log level to debug.',
-      ),
-    ],
+  print_cache_path: bool = field(metadata={
+    ARGS: [
+      argparse_arg(
+        '--print-cache-path', '-P', 
+        action='store_true',
+        help='Print the disk cache path to stdout and exit.'
+      )
+    ]
   })
 
   COMMAND: List[str] = field(metadata={
-    ARGSPEC_KEY: [
-      ArgSpec(
-        type=lambda arg: [arg], # start a list
+    ARGS: [
+      argparse_arg(
+        nargs=ZERO_OR_MORE,
         metavar='COMMAND',
       ),
-      ArgSpec(
-        nargs=ZERO_OR_MORE,
-        action='extend',
-        metavar='ARGS',
-      )
     ],
   })
 
-  @classmethod
-  def _get_argument_parser(cls) -> ArgumentParser:
-    parser = ArgumentParser(description=cls.__doc__, formatter_class=BlankLinesHelpFormatter)
-    [
-      add_arg_fn(parser, dest=field.name)
-      for field in fields(cls) 
-      for add_arg_fn in field.metadata[cls.ARGSPEC_KEY]
-    ]
-    return parser
 
-  @classmethod
-  def _get_command(cls, argv: List[str]) -> List[str]:
-    args, _rest = cls._get_argument_parser().parse_known_args(argv)
-    cmd: List[str] = args.COMMAND[1:] if args.COMMAND[0] == '--' else args.COMMAND
-    return cmd
-
-  @staticmethod
-  def _envize_string(s: str, keep_case: Callable[[str],bool] = lambda _: True) -> str:
-    subbed = re.sub(r'[^a-zA-Z0-9]+', '_', s).strip('_')
-    return subbed if keep_case(subbed) else subbed.upper()
-
-  _ENVVAR_RE = r'''(?x)
-    ^
-      RUNCACHED_
-      (?P<envized_opt> [a-zA-Z0-9]+ (?:_[a-zA-Z0-9]+)* ) # option part does not allow double underscores
-      (?: __ (?P<envized_cmd> [\w\*]+) )? # cmd part allows double underscores
-    $
-  '''
-
-  @classmethod
-  def _get_arguments_from_env(cls, parser: ArgumentParser, cmd: List[str]) -> Iterator[str]:
-    envized_cmd: str = '__'.join(map(cls._envize_string, cmd))
-    debug(f'Envized command: {envized_cmd}')
-
-    envized_opts: Dict[str, str] = {
-      cls._envize_string(opt, keep_case=lambda s: len(s) == 1): opt
-      for opt in parser._option_string_actions.keys()
-    }
-
-    for envvar, envvar_val in sorted(os.environ.items()):
-      if not envvar.startswith('RUNCACHED_') or not envvar_val:
-        continue
-
-      if not (match := re.match(cls._ENVVAR_RE, envvar)):
-        raise ValueError(f'Envvar {envvar}: Could not parse. Should match {repr(cls._ENVVAR_RE)}.')
-
-      if (_envized_opt := match['envized_opt']) not in envized_opts:
-        raise ValueError(f'Envvar {envvar}: Unrecognized option {repr(_envized_opt)}. Must be one of {envized_opts.keys()}.')
-
-      if (_envized_cmd := match['envized_cmd']) and not envized_cmd.startswith(_envized_cmd):
-        debug(f'Envvar {envvar}: envized command does not start with {repr(_envized_cmd)}; skipping.')
-        continue
-
-      opt = envized_opts[_envized_opt]
-      action = parser._option_string_actions[opt]
-
-      extra_args = [opt] + ([envvar_val] if action.nargs is None or action.nargs else [])
-      debug(f'Extra args from env var {envvar}: {extra_args}')
-      yield from extra_args
-
-  @classmethod
-  def parse(cls: Type['CliArgs'], argv: List[str] = sys.argv[1:]) -> Tuple['CliArgs', ArgumentParser]:
-    parser = cls._get_argument_parser()
-    cmd = cls._get_command(argv)
-    argv = list(cls._get_arguments_from_env(parser, cmd)) + argv
-    args_namespace = parser.parse_args(argv)
-    args = cls(**args_namespace.__dict__)
-    return args, parser
-
-  def __post_init__(self):
-    for field in fields(self):
-      assert isassignable(val := getattr(self, field.name), field.type), f'{field.name} {val} should be a {field.type}!'
+@dataclass
+class CliArgs(NonVerbosityOpts, VerbosityOpts, metaclass=DataclassMetaArgumentParser):
+  pass
