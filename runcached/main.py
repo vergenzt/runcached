@@ -10,6 +10,7 @@ from dataclasses import dataclass, field, replace
 from datetime import datetime
 from functools import cached_property, partial
 from hashlib import sha256
+from signal import signal, SIGPIPE, SIG_DFL
 from typing import IO, AsyncIterator, Callable, Dict, List, Mapping, Optional, TypeAlias, cast
 
 import appdirs
@@ -77,10 +78,7 @@ class RunResult:
 
   def replay_outputs(self, filter: StrFilter = str):
     for output in self.outputs:
-      try:
-        output.write(filter)
-      except BrokenPipeError:
-        pass
+      output.write(filter)
 
 
 @dataclass(frozen=True)
@@ -177,6 +175,10 @@ async def cli(argv: List[str] = sys.argv[1:]) -> int:
       or os.environ.get('RUNCACHED_v'):
     logging.getLogger().setLevel(logging.DEBUG)
     sys.addaudithook(lambda *a: print('[runcached:DEBUG]', *a, file=sys.stderr) if a[0] == 'subprocess.Popen' else None)
+
+  # silently exit on broken pipes
+  # https://stackoverflow.com/a/30091579
+  signal(SIGPIPE, SIG_DFL)
 
   args, parser = CliArgs.parse(argv)
 
