@@ -5,11 +5,12 @@ description = ""
 authors = ["Tim Vergenz <vergenzt@gmail.com>"]
 
 [tool.poetry.dependencies]
-python = ">=3.9"
+python = ">=3.9,<4.0"
 appdirs = "*"
 diskcache = "*"
 pytimeparse = "*"
 trycast = "*"
+shellous = "*"
 
 [tool.poetry.dev-dependencies]
 cogapp = "*"

@@ -1,5 +1,4 @@
 from asyncio import StreamReader, Task, create_task, run as async_run, wait
-from asyncio.subprocess import PIPE, DEVNULL, Process, create_subprocess_shell, create_subprocess_exec
 from enum import Enum
 from io import StringIO
 import logging
@@ -15,6 +14,7 @@ from typing import IO, AsyncIterator, Callable, Dict, List, Mapping, Optional, T
 
 import appdirs
 import diskcache
+from shellous import sh, Runner
 
 from .args import CliArgs, EnvArg
 
@@ -33,7 +33,7 @@ class OutputDest(Enum):
   def io(self) -> IO[str]:
     return getattr(sys, self.value)
 
-  def reader_for(self, proc: Process) -> StreamReader:
+  def reader_for(self, proc: Runner) -> StreamReader:
     return getattr(proc, self.value)
 
 
@@ -43,7 +43,7 @@ class Output:
   text: str
 
   @classmethod
-  async def from_process(cls, proc: Process) -> AsyncIterator['Output']:
+  async def from_process(cls, proc: Runner) -> AsyncIterator['Output']:
     iters: Dict[str, AsyncIterator[bytes]] = { dest.value: aiter(dest.reader_for(proc)) for dest in OutputDest }
     nexts: Dict[str, Task[bytes]] = {}
 
@@ -91,8 +91,8 @@ class RunConfig:
   input: Optional[str] = None
   shell: bool = False
   shlex: bool = False
+  tty: bool = False
   strip_colors: bool = False
-  custom_cache_key: Optional[str] = None
 
   @cached_property
   def _output_filter(self):
@@ -100,32 +100,42 @@ class RunConfig:
 
   async def _run_without_caching(self) -> 'RunResult':
     started_at = datetime.now()
-
-    if self.shell:
-      run = create_subprocess_shell
-      if self.shlex:
-        args = [shlex.join(self.command)]
-      else:
-        args = [' '.join(self.command)]
-    else:
-      run = create_subprocess_exec
-      args = self.command
-
-    proc = await run(
-      *args,
-      executable=os.environ.get('SHELL') if self.shell else None,
-      env={ **self.envs_for_cache, **self.envs_for_passthru },
-      stdin = DEVNULL if self.input is None else StringIO(self.input),
-      stdout = PIPE,
-      stderr = PIPE,
+    env = {
+      **self.envs_for_cache,
+      **self.envs_for_passthru,
+    }
+    cmd = (
+      sh
+      .set(
+        exit_codes = range(255),
+        inherit_env = False,
+        pty = self.tty,
+      )
+      .env(**env)
+      .stdin(
+        sh.DEVNULL if self.input is None else StringIO(self.input) 
+      )
+      .stdout(sh.CAPTURE)
+      .stderr(sh.CAPTURE)
+      .result
+    )(
+      [
+        env['SHELL'],
+        '-c',
+        (shlex.join if self.shlex else ' '.join)(self.command)
+      ]
+      if self.shell
+      else self.command
     )
+    logging.debug(repr(cmd))
 
-    outputs = []
-    async for output in Output.from_process(proc):
-      outputs.append(output)
-      output.write(self._output_filter)
+    async with cmd as proc:
+      outputs = []
+      async for output in Output.from_process(proc):
+        outputs.append(output)
+        output.write(self._output_filter)
 
-    return_code = await proc.wait()
+    return_code = proc.returncode
 
     return RunResult(
       started_at,
@@ -151,14 +161,13 @@ class RunConfig:
     if (result := cast(RunResult, cache.get(self._cacheable))) and result.started_at >= min_started_at:
       logging.info(f'Using cached result for {self} from {result.started_at}.')
       result.replay_outputs(self._output_filter)
-      return result
     else:
       result = await self._run_without_caching()
       if result.return_code == 0 or args.keep_failures:
         cache.set(self._cacheable, result)
       else:
         logging.warn(f'Command returned {result.return_code} and --keep-failures not specified; refusing to cache.')
-      return result
+    return result
 
 
 async def cli(argv: List[str] = sys.argv[1:]) -> int:
@@ -178,7 +187,10 @@ async def cli(argv: List[str] = sys.argv[1:]) -> int:
   envs_for_passthru = EnvArg.filter_envvars(os.environ, args.passthru_env or [], args.exclude_env or [])
 
   if args.shell:
-    envs_for_cache = { **envs_for_cache, 'SHELL': os.environ.get('SHELL') }
+    envs_for_cache['SHELL'] = os.environ.get('SHELL', 'sh')
+
+  if args.tty and (term_val := os.environ.get('TERM')):
+      envs_for_cache['TERM'] = term_val
 
   cfg = RunConfig(
     command = args.COMMAND,
@@ -186,6 +198,7 @@ async def cli(argv: List[str] = sys.argv[1:]) -> int:
     envs_for_passthru = envs_for_passthru,
     shell = args.shell,
     shlex = args.shlex,
+    tty = args.tty,
     strip_colors = args.strip_colors,
     input = sys.stdin.read() if args.stdin else None,
   )

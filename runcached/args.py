@@ -89,6 +89,27 @@ class CliArgs:
     )],
   })
 
+  tty: bool = field(metadata={
+    ARGSPEC_KEY: [
+       ArgSpec(
+        '--tty', '-y',
+        action='store_true',
+        default=False,
+        help=dedent('''
+          Allocate a pseudo-TTY for the command. Often determines whether command
+          outputs color or not. See also --strip-colors/-C. [default: %(default)s]
+        '''),
+      ),
+      ArgSpec(
+        '--no-tty', '-Y',
+        action='store_false',
+        help=dedent('''
+          Do not allocate a pseudo-TTY. Overrides -y.
+        '''),
+      ),
+    ]
+  })
+
   keep_failures: bool = field(metadata={
     ARGSPEC_KEY: [ArgSpec(
       '--keep-failures', '-F',

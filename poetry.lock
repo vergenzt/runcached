@@ -198,6 +198,14 @@ optional = false
 python-versions = ">=3.6"
 
 [[package]]
+name = "shellous"
+version = "0.25.0"
+description = "Async Processes and Pipelines"
+category = "main"
+optional = false
+python-versions = ">=3.9,<4.0"
+
+[[package]]
 name = "toml"
 version = "0.10.2"
 description = "Python Library for Tom's Obvious, Minimal Language"
@@ -260,8 +268,8 @@ typing-extensions = ">=3.7.4"
 
 [metadata]
 lock-version = "1.1"
-python-versions = "~3.9"
-content-hash = "7fd52dcd892055484c7e4fb24feebd4f5d8767414af3b32117da30b9c1cd56b0"
+python-versions = ">=3.9,<4.0"
+content-hash = "da29a8f4c8ca28862794bf9a9d73af14d293c572850744d0288e537b152b4258"
 
 [metadata.files]
 appdirs = [
@@ -347,6 +355,7 @@ pyyaml = [
     {file = "PyYAML-6.0-cp39-cp39-win_amd64.whl", hash = "sha256:b3d267842bf12586ba6c734f89d1f5b871df0273157918b0ccefa29deb05c21c"},
     {file = "PyYAML-6.0.tar.gz", hash = "sha256:68fb519c14306fec9720a2a5b45bc9f0c8d1b9c72adf45c37baedfcd949c35a2"},
 ]
+shellous = []
 toml = [
     {file = "toml-0.10.2-py2.py3-none-any.whl", hash = "sha256:806143ae5bfb6a3c6e736a764057db0e6a0e05e338b5630894a5f779cabb4f9b"},
     {file = "toml-0.10.2.tar.gz", hash = "sha256:b3bda1d108d5dd99f4a20d24d9c348e91c4db7ab1b749200bded2f839ccbe68f"},
