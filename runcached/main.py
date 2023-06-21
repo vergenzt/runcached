@@ -15,7 +15,7 @@ from typing import IO, AsyncIterator, Callable, Dict, List, Mapping, Optional, T
 
 import appdirs
 import diskcache
-from shellous import sh, Runner
+from shellous import raw, sh, Runner
 
 from .args import CliArgs, EnvArg
 
@@ -107,7 +107,7 @@ class RunConfig:
       .set(
         exit_codes = range(255),
         inherit_env = False,
-        pty = self.tty,
+        pty = raw() if self.tty else False,
       )
       .env(**env)
       .stdin(
