@@ -110,9 +110,7 @@ class RunConfig:
         pty = raw() if self.tty else False,
       )
       .env(**env)
-      .stdin(
-        sh.DEVNULL if self.input is None else StringIO(self.input) 
-      )
+      .stdin(StringIO(self.input))
       .stdout(sh.CAPTURE)
       .stderr(sh.CAPTURE)
       .result
