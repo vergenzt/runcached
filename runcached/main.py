@@ -105,7 +105,6 @@ class RunConfig:
     cmd = (
       sh
       .set(
-        exit_codes = range(255),
         inherit_env = False,
         pty = raw() if self.tty else False,
       )
