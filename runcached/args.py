@@ -10,7 +10,7 @@ from fnmatch import fnmatchcase
 from functools import partial
 from logging import debug
 from textwrap import dedent
-from typing import Callable, ClassVar, Dict, Iterator, List, Mapping, Optional, Tuple, Type, cast
+from typing import Callable, ClassVar, Dict, Iterator, List, Mapping, NamedTuple, Optional, Set, Tuple, Type, cast
 
 from pytimeparse.timeparse import timeparse as pytimeparse
 from trycast import isassignable
@@ -26,32 +26,30 @@ class BlankLinesHelpFormatter(HelpFormatter):
     return super()._split_lines(text, width) + ['']
 
 
-@dataclass
-class EnvArg:
-  envvar: str
-  assigned_value: Optional[str] = None
+class EnvArg(NamedTuple):
+  name: str
+  assigned_value: Optional[str]
 
   def matches(self, envvar: str) -> bool:
     return fnmatchcase(envvar, self.envvar)
 
   @staticmethod
-  def filter_envvars(envvars: Mapping[str, str], inclusions: List['EnvArg'], exclusions: List['EnvArg']) -> Mapping[str, str]:
-    assignments = { arg.envvar: arg.assigned_value for arg in inclusions if arg.assigned_value is not None }
-    return {
-      name: assignments.get(name, val)
-      for name, val in envvars.items()
-      if any(arg.matches(name) for arg in inclusions)
-      and not any(arg.matches(name) for arg in exclusions)
-    }
+  def filter_envvars(envvars: Mapping[str, str], includes: Dict[str, Optional[str]], excludes: Set[str]) -> Mapping[str, str]:
+    keys = includes.keys() - excludes
+    forwards = { k: envvars[k]  for k in keys if includes[k] is None and k in envvars }
+    assigns  = { k: includes[k] for k in keys if includes[k] is not None }
+    return { **forwards, **assigns }
 
   @classmethod
   def from_env_arg(cls, envarg: str, assignment_allowed: bool = False) -> 'EnvArg':
-    if assignment_allowed:
-      (envarg_shlexed,) = shlex.split(envarg) # unnest shell quotes; should always only be one value
-      (envvar, assigned_value) = envarg_shlexed.split('=', maxsplit=1)
-      return cls(envvar, assigned_value)
+    (envarg_shlexed,) = shlex.split(envarg) # unnest shell quotes; should always only be one value
+    if '=' in envarg_shlexed:
+      if not assignment_allowed:
+        raise ValueError(f'Assignment not allowed in this context: {envarg}')
+      else:
+        return cls(*envarg_shlexed.split('=', maxsplit=1))
     else:
-      return cls(envarg)
+      return cls(envarg, None)
 
   @classmethod
   def from_env_args(cls, arg: str, *a, **k) -> List['EnvArg']:

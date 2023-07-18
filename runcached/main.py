@@ -183,8 +183,12 @@ async def cli(argv: List[str] = sys.argv[1:]) -> int:
   logging.getLogger().setLevel(args.verbosity)
   logging.debug(args)
 
-  envs_for_cache = EnvArg.filter_envvars(os.environ, args.include_env or [], args.exclude_env or [])
-  envs_for_passthru = EnvArg.filter_envvars(os.environ, args.passthru_env or [], args.exclude_env or [])
+  excludes = set(dict(args.exclude_env or []).keys())
+  includes = dict(args.include_env or [])
+  passthru = dict(args.passthru_env or [])
+
+  envs_for_cache    = EnvArg.filter_envvars(os.environ, includes, excludes)
+  envs_for_passthru = EnvArg.filter_envvars(os.environ, passthru, excludes)
 
   if args.shell:
     envs_for_cache['SHELL'] = os.environ.get('SHELL', 'sh')
