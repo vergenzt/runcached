@@ -54,9 +54,9 @@ class EnvArg:
       return cls(envarg)
 
   @classmethod
-  def from_env_args(cls, arg: str, assignment_allowed: bool = False) -> List['EnvArg']:
+  def from_env_args(cls, arg: str, *a, **k) -> List['EnvArg']:
     envargs = filter(','.__ne__, shlex.shlex(arg, posix=True, punctuation_chars=','))
-    return list(map( cls.from_env_arg, envargs ))
+    return [cls.from_env_arg(envarg, *a, **k) for envarg in envargs]
 
 
 class _ExtendEachAction(Action):
