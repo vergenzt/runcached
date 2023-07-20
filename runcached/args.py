@@ -44,10 +44,13 @@ class EnvArg(NamedTuple):
   def from_env_arg(cls, envarg: str, assignment_allowed: bool = False) -> 'EnvArg':
     (envarg_shlexed,) = shlex.split(envarg) # unnest shell quotes; should always only be one value
     if '=' in envarg_shlexed:
+      name, assigned_value = envarg_shlexed.split('=', maxsplit=1)
       if not assignment_allowed:
         raise ValueError(f'Assignment not allowed in this context: {envarg}')
+      elif not re.match(name, r'\w+'):
+        raise ValueError(f'Cannot assign value to envvars with wildcards: {envarg}')
       else:
-        return cls(*envarg_shlexed.split('=', maxsplit=1))
+        return cls(name, assigned_value)
     else:
       return cls(envarg, None)
 
