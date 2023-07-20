@@ -30,15 +30,15 @@ class EnvArg(NamedTuple):
   name: str
   assigned_value: Optional[str]
 
-  def matches(self, envvar: str) -> bool:
-    return fnmatchcase(envvar, self.envvar)
-
   @staticmethod
-  def filter_envvars(envvars: Mapping[str, str], includes: Dict[str, Optional[str]], excludes: Set[str]) -> Mapping[str, str]:
-    keys = includes.keys() - excludes
-    forwards = { k: envvars[k]  for k in keys if includes[k] is None and k in envvars }
-    assigns  = { k: includes[k] for k in keys if includes[k] is not None }
-    return { **forwards, **assigns }
+  def filter_envvars(envvars: Mapping[str, str], includes: Dict[str, Optional[str]], exclude_pats: Set[str]) -> Mapping[str, str]:
+    assignments = { k: v for k, v in includes.items() if v is not None }
+    include_pats = set(includes.keys() - assignments.keys())
+    return {
+      k: v for k, v in (envvars | assignments).items()
+      if     (k in include_pats or any(fnmatchcase(k, pat) for pat in include_pats))
+      if not (k in exclude_pats or any(fnmatchcase(k, pat) for pat in exclude_pats))
+    }
 
   @classmethod
   def from_env_arg(cls, envarg: str, assignment_allowed: bool = False) -> 'EnvArg':
