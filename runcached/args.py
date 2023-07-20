@@ -47,7 +47,7 @@ class EnvArg(NamedTuple):
       name, assigned_value = envarg_shlexed.split('=', maxsplit=1)
       if not assignment_allowed:
         raise ValueError(f'Assignment not allowed in this context: {envarg}')
-      elif not re.match(name, r'\w+'):
+      elif not re.match(r'\w+', name):
         raise ValueError(f'Cannot assign value to envvars with wildcards: {envarg}')
       else:
         return cls(name, assigned_value)
