@@ -194,7 +194,7 @@ async def cli(argv: List[str] = sys.argv[1:]) -> int:
     envs_for_cache['SHELL'] = os.environ.get('SHELL', 'sh')
 
   if args.tty and (term_val := os.environ.get('TERM')):
-      envs_for_cache['TERM'] = term_val
+    envs_for_cache['TERM'] = term_val
 
   cfg = RunConfig(
     command = args.COMMAND,
