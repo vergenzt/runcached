@@ -302,9 +302,9 @@ class CliArgs:
     return cmd
 
   @staticmethod
-  def _envize_string(s: str, keep_case: Callable[[str],bool] = lambda _: True) -> str:
+  def _envize_string(s: str, keep_case: bool = True) -> str:
     subbed = re.sub(r'[^a-zA-Z0-9]+', '_', s).strip('_')
-    return subbed if keep_case(subbed) else subbed.upper()
+    return subbed if keep_case else subbed.upper()
 
   _ENVVAR_RE = r'''(?x)
     ^
@@ -320,7 +320,7 @@ class CliArgs:
     debug(f'Envized command: {envized_cmd}')
 
     envized_opts: Dict[str, str] = {
-      cls._envize_string(opt, keep_case=lambda s: len(s) == 1): opt
+      cls._envize_string(opt, keep_case=False): opt
       for opt in parser._option_string_actions.keys()
     }
 
