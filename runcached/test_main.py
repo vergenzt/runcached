@@ -26,3 +26,16 @@ def test_main(testenv: Dict[str, str]):
   assert result.stdout == 'foo\n'
   assert re.match(string=result.stderr, pattern='^' + re.escape("[runcached:INFO] Using cached result") + '.*$')
 
+
+def test_buffer_overrun(testenv: Dict[str, str]):
+  result = run(['runcached', '--', 'dd', 'status=none', 'if=/dev/zero', 'bs=1024', 'count=65'], text=True, input='', stdout=PIPE, stderr=PIPE, env=testenv)
+  assert result.returncode == 0
+  assert result.stdout == '\0' * 65*1024
+  assert result.stderr == ''
+
+  result = run(['runcached', '--', 'dd', 'status=none', 'if=/dev/zero', 'bs=1024', 'count=65'], text=True, input='', stdout=PIPE, stderr=PIPE, env=testenv)
+  assert result.returncode == 0
+  assert result.stdout == '\0' * 65*1024
+  assert re.match(string=result.stderr, pattern='^' + re.escape("[runcached:INFO] Using cached result") + '.*$')
+
+

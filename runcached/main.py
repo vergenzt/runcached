@@ -1,3 +1,4 @@
+import asyncio
 from asyncio import StreamReader, Task, create_task, run as async_run, wait
 from enum import Enum
 from io import StringIO
@@ -38,6 +39,17 @@ class OutputDest(Enum):
     return getattr(proc, self.value)
 
 
+async def read_stream(stream: StreamReader) -> AsyncIterator[bytes]:
+  while not stream.at_eof():
+    try:
+      yield await stream.readuntil(b'\n')
+    except asyncio.exceptions.LimitOverrunError as err:
+      yield await stream.readexactly(err.consumed)
+    except asyncio.exceptions.IncompleteReadError as err:
+      yield err.partial
+      stream.feed_eof()
+
+
 @dataclass(frozen=True)
 class Output:
   dest: OutputDest
@@ -45,19 +57,19 @@ class Output:
 
   @classmethod
   async def from_process(cls, proc: Runner) -> AsyncIterator['Output']:
-    iters: Dict[str, AsyncIterator[bytes]] = { dest.value: aiter(dest.reader_for(proc)) for dest in OutputDest }
-    nexts: Dict[str, Task[bytes]] = {}
+    iters: Dict[OutputDest, AsyncIterator[bytes]] = { dest: read_stream(dest.reader_for(proc)) for dest in OutputDest }
+    nexts: Dict[OutputDest, Task[bytes]] = {}
 
     while iters:
       nexts.update({
-        dest: create_task(anext(iter), name=dest)
+        dest: create_task(anext(iter), name=dest.value)
         for dest, iter in iters.items() if dest not in nexts
       })
 
       nexts_done, _nexts_pending = await wait(nexts.values(), return_when='FIRST_COMPLETED')
 
       for next_done in nexts_done:
-        next_dest = next_done.get_name()
+        next_dest = OutputDest(next_done.get_name())
         nexts.pop(next_dest)
 
         try:
